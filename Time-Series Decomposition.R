@@ -1,34 +1,49 @@
 # Time Series Decomposition and Components Analysis
 # ---------------------- Chunk 1: Load Packages and Data ----------------------
-librarian::shelf(TSstudio, tidyverse, xts, plotly, dplyr, ggplot2, 
-                viridis, scales, lubridate, corrplot, purrr)
+librarian::shelf(
+  TSstudio,
+  tidyverse,
+  xts,
+  plotly,
+  dplyr,
+  ggplot2,
+  viridis,
+  scales,
+  lubridate,
+  corrplot,
+  purrr
+)
 
 data(USVSales)
-data(USUnRate) 
+data(USUnRate)
 data(USgas)
 
 # ---------------------- Chunk 2: Explore US Vehicle Sales Properties ----------------------
 ts_info(USVSales) # Time series metadata
 
 # visualization
-ts_plot(USVSales,
-        title = "US Monthly Total Vehicle Sales",
-        Ytitle = "Thousands of Units", 
-        Xtitle = "Years",
-        Xgrid = TRUE,
-        Ygrid = TRUE)
+ts_plot(
+  USVSales,
+  title = "US Monthly Total Vehicle Sales",
+  Ytitle = "Thousands of Units",
+  Xtitle = "Years",
+  Xgrid = TRUE,
+  Ygrid = TRUE
+)
 
 # ---------------------- Chunk 3: Create Lagged Series Function  ----------------------
 create_lags <- function(ts_obj, l) {
-  ts_matrix <- map(0:l, ~stats::lag(ts_obj, k = -.x)) |>
+  ts_matrix <- map(0:l, ~ stats::lag(ts_obj, k = -.x)) |>
     reduce(ts.union)
-  
+
   colnames(ts_matrix) <- c("y", paste0("y_", 1:l))
-  
+
   # Remove missing values
-  ts_matrix <- window(ts_matrix,
-                     start = start(ts_obj) + c(0, l),
-                     end = end(ts_obj))
+  ts_matrix <- window(
+    ts_matrix,
+    start = start(ts_obj) + c(0, l),
+    end = end(ts_obj)
+  )
   return(ts_matrix)
 }
 
@@ -51,7 +66,7 @@ create_sma <- function(ts_obj, order) {
   l <- order - 1
   lagged_data <- create_lags(ts_obj = ts_obj, l = l)
   moving_avg <- calculate_ts_mean(lagged_data)
-  
+
   # Combine original and transformed series
   result <- ts.union(ts_obj, moving_avg)
   colnames(result) <- c("original", "transformed")
@@ -61,33 +76,39 @@ create_sma <- function(ts_obj, order) {
 # ---------------------- Chunk 6: Create and Visualize Moving Averages ----------------------
 # 4-period Simple Moving Average
 sma_4 <- create_sma(USVSales, order = 4)
-ts_plot(sma_4, 
-        type = "multiple",
-        title = "US Vehicle Sales - SMA (Order 4)",
-        Ytitle = "Thousands of Units",
-        Ygrid = TRUE,
-        Xgrid = TRUE,
-        Xtitle = "Year")
+ts_plot(
+  sma_4,
+  type = "multiple",
+  title = "US Vehicle Sales - SMA (Order 4)",
+  Ytitle = "Thousands of Units",
+  Ygrid = TRUE,
+  Xgrid = TRUE,
+  Xtitle = "Year"
+)
 
-# 12-period Simple Moving Average  
+# 12-period Simple Moving Average
 sma_12 <- create_sma(USVSales, order = 12)
-ts_plot(sma_12, 
-        type = "multiple",
-        title = "US Vehicle Sales - SMA (Order 12)",
-        Ytitle = "Thousands of Units",
-        Ygrid = TRUE,
-        Xgrid = TRUE,
-        Xtitle = "Year")
+ts_plot(
+  sma_12,
+  type = "multiple",
+  title = "US Vehicle Sales - SMA (Order 12)",
+  Ytitle = "Thousands of Units",
+  Ygrid = TRUE,
+  Xgrid = TRUE,
+  Xtitle = "Year"
+)
 
 # ---------------------- Chunk 7: Two-sided Moving Average Analysis ----------------------
 # Create multiple two-sided moving averages
-two_sided_ma <- ts_ma(ts.obj = USVSales,
-                     n = c(2, 5),
-                     n_left = 6, 
-                     n_right = 5, 
-                     plot = TRUE, 
-                     multiple = TRUE, 
-                     margin = 0.04)
+two_sided_ma <- ts_ma(
+  ts.obj = USVSales,
+  n = c(2, 5),
+  n_left = 6,
+  n_right = 5,
+  plot = TRUE,
+  multiple = TRUE,
+  margin = 0.04
+)
 
 # ---------------------- Chunk 8: Compare One-sided vs Two-sided Moving Averages ----------------------
 # Create both types of 12-period moving averages
@@ -102,14 +123,18 @@ two_sided <- two_sided_12$unbalanced_ma_12
 ma_comparison <- cbind(USVSales, one_sided, two_sided)
 colnames(ma_comparison) <- c("Original", "One_Sided_MA", "Two_Sided_MA")
 
-p_ma <- ts_plot(ma_comparison,
-               Xgrid = TRUE,
-               Ygrid = TRUE,
-               type = "single",
-               title = "One-Sided vs. Two-Sided Moving Average - Order 12") |>
-  layout(legend = list(x = 0.05, y = 0.95),
-         yaxis = list(title = "Thousands of Units"),
-         xaxis = list(title = "Year"))
+p_ma <- ts_plot(
+  ma_comparison,
+  Xgrid = TRUE,
+  Ygrid = TRUE,
+  type = "single",
+  title = "One-Sided vs. Two-Sided Moving Average - Order 12"
+) |>
+  layout(
+    legend = list(x = 0.05, y = 0.95),
+    yaxis = list(title = "Thousands of Units"),
+    xaxis = list(title = "Year")
+  )
 
 print(p_ma)
 
@@ -117,12 +142,14 @@ print(p_ma)
 # Focus on unemployment cycles since 1990
 unemployment <- window(USUnRate, start = c(1990, 1))
 
-ts_plot(unemployment,
-        title = "US Monthly Unemployment Rate - Cyclical Patterns",
-        Ytitle = "Unemployment Rate (%)",
-        Xtitle = "Year",
-        Xgrid = TRUE,
-        Ygrid = TRUE)
+ts_plot(
+  unemployment,
+  title = "US Monthly Unemployment Rate - Cyclical Patterns",
+  Ytitle = "Unemployment Rate (%)",
+  Xtitle = "Year",
+  Xgrid = TRUE,
+  Ygrid = TRUE
+)
 
 # unemployment analysis plots
 unemployment_df <- data.frame(
@@ -133,7 +160,7 @@ unemployment_df <- data.frame(
     year = year(date),
     recession_period = case_when(
       between(year, 1990, 1991) ~ "Early 90s Recession",
-      between(year, 2001, 2003) ~ "Dot-com Recession", 
+      between(year, 2001, 2003) ~ "Dot-com Recession",
       between(year, 2007, 2009) ~ "Great Recession",
       between(year, 2020, 2021) ~ "COVID-19 Recession",
       TRUE ~ "Normal Period"
@@ -144,8 +171,13 @@ unemployment_df <- data.frame(
 ggplot(unemployment_df, aes(x = date, y = rate)) +
   geom_line(color = "steelblue", size = 0.8) +
   geom_point(aes(color = recession_period), alpha = 0.7, size = 1.2) +
-  geom_smooth(method = "loess", span = 0.3, color = "darkred", 
-              linetype = "dashed", alpha = 0.8) +
+  geom_smooth(
+    method = "loess",
+    span = 0.3,
+    color = "darkred",
+    linetype = "dashed",
+    alpha = 0.8
+  ) +
   scale_color_viridis_d(name = "Economic Period") +
   labs(
     title = "US Unemployment Rate: Cyclical Analysis (1990-Present)",
@@ -163,9 +195,7 @@ ggplot(unemployment_df, aes(x = date, y = rate)) +
 # ---------------------- Chunk 10: Synthetic Trend Components Generation ----------------------
 set.seed(42)
 # Create baseline series without trend
-ts_non_trend <- ts(runif(200, 5, 5.2),
-                  start = c(2000, 1), 
-                  frequency = 12)
+ts_non_trend <- ts(runif(200, 5, 5.2), start = c(2000, 1), frequency = 12)
 
 # Generate different trend patterns
 trend_length <- length(ts_non_trend)
@@ -184,8 +214,16 @@ trend_data <- tibble(
   )
 
 # Convert to time series objects
-ts_linear_trend_p <- ts(trend_data$positive_linear, start = c(2000, 1), frequency = 12)
-ts_linear_trend_n <- ts(trend_data$negative_linear, start = c(2000, 1), frequency = 12)
+ts_linear_trend_p <- ts(
+  trend_data$positive_linear,
+  start = c(2000, 1),
+  frequency = 12
+)
+ts_linear_trend_n <- ts(
+  trend_data$negative_linear,
+  start = c(2000, 1),
+  frequency = 12
+)
 ts_exp_trend <- ts(trend_data$exponential, start = c(2000, 1), frequency = 12)
 
 # ---------------------- Chunk 11: Trend Visualization and Analysis ----------------------
@@ -198,25 +236,29 @@ merged_trends <- merge(
 )
 
 # Interactive trend comparison
-ts_plot(merged_trends,
-        type = "single",
-        Xgrid = TRUE,
-        Ygrid = TRUE,
-        title = "Different Types of Trends",
-        Ytitle = "Series Values",
-        Xtitle = "Year") |>
+ts_plot(
+  merged_trends,
+  type = "single",
+  Xgrid = TRUE,
+  Ygrid = TRUE,
+  title = "Different Types of Trends",
+  Ytitle = "Series Values",
+  Xtitle = "Year"
+) |>
   layout(legend = list(x = 0.1, y = 0.9))
 
 # Static ggplot2 trend analysis
 trend_long <- trend_data |>
-  pivot_longer(cols = c(baseline, positive_linear, negative_linear, exponential),
-               names_to = "trend_type", 
-               values_to = "value") |>
+  pivot_longer(
+    cols = c(baseline, positive_linear, negative_linear, exponential),
+    names_to = "trend_type",
+    values_to = "value"
+  ) |>
   mutate(
     trend_type = case_when(
       trend_type == "baseline" ~ "Baseline (No Trend)",
       trend_type == "positive_linear" ~ "Positive Linear Trend",
-      trend_type == "negative_linear" ~ "Negative Linear Trend", 
+      trend_type == "negative_linear" ~ "Negative Linear Trend",
       trend_type == "exponential" ~ "Exponential Trend"
     )
   )
@@ -239,20 +281,24 @@ ggplot(trend_long, aes(x = date, y = value, color = trend_type)) +
 
 # ---------------------- Chunk 12: Seasonal Component Analysis ----------------------
 # Generate seasonal patterns
-seasonal_pattern <- sin(2 * pi * (1:length(ts_non_trend)) / frequency(ts_non_trend))
+seasonal_pattern <- sin(
+  2 * pi * (1:length(ts_non_trend)) / frequency(ts_non_trend)
+)
 ts_seasonal <- ts_non_trend + seasonal_pattern
 
 # Pure seasonal visualization
-ts_plot(ts_seasonal,
-        title = "Seasonal Pattern without Trend",
-        Xgrid = TRUE,
-        Ygrid = TRUE,
-        Ytitle = "Series Values",
-        Xtitle = "Year")
+ts_plot(
+  ts_seasonal,
+  title = "Seasonal Pattern without Trend",
+  Xgrid = TRUE,
+  Ygrid = TRUE,
+  Ytitle = "Series Values",
+  Xtitle = "Year"
+)
 
 # Combine seasonal patterns with trends
 seasonal_with_ptrend <- ts_linear_trend_p + seasonal_pattern
-seasonal_with_ntrend <- ts_linear_trend_n + seasonal_pattern  
+seasonal_with_ntrend <- ts_linear_trend_n + seasonal_pattern
 seasonal_with_etrend <- ts_exp_trend + seasonal_pattern
 
 # Merge seasonal series with trends
@@ -262,23 +308,29 @@ merged_seasonal <- merge(
   Exponential_Trend = as.xts(seasonal_with_etrend)
 )
 
-ts_plot(merged_seasonal,
-        type = "single",
-        Xgrid = TRUE,
-        Ygrid = TRUE,
-        title = "Seasonal Patterns Combined with Different Trends",
-        Ytitle = "Series Values",
-        Xtitle = "Year") |>
+ts_plot(
+  merged_seasonal,
+  type = "single",
+  Xgrid = TRUE,
+  Ygrid = TRUE,
+  title = "Seasonal Patterns Combined with Different Trends",
+  Ytitle = "Series Values",
+  Xtitle = "Year"
+) |>
   layout(legend = list(x = 0.1, y = 0.9))
 
 # ---------------------- Chunk 13: Seasonal vs Cyclical Heatmap Analysis ----------------------
 # Natural gas consumption heatmap - seasonal patterns
-ts_heatmap(USgas,
-          title = "Heatmap - US Natural Gas Consumption (Seasonal Patterns)")
+ts_heatmap(
+  USgas,
+  title = "Heatmap - US Natural Gas Consumption (Seasonal Patterns)"
+)
 
-# Unemployment rate heatmap - cyclical patterns  
-ts_heatmap(USUnRate,
-          title = "Heatmap - US Unemployment Rate (Cyclical Patterns)")
+# Unemployment rate heatmap - cyclical patterns
+ts_heatmap(
+  USUnRate,
+  title = "Heatmap - US Unemployment Rate (Cyclical Patterns)"
+)
 
 # heatmap analysis with ggplot2
 gas_df <- data.frame(
@@ -310,16 +362,20 @@ ggplot(gas_df, aes(x = month, y = factor(year), fill = consumption)) +
 
 # ---------------------- Chunk 14: White Noise Analysis and Testing ----------------------
 set.seed(42)
-white_noise <- ts(rnorm(12 * 10, mean = 0, sd = 1), 
-                 start = c(2008, 1), 
-                 frequency = 12)
+white_noise <- ts(
+  rnorm(12 * 10, mean = 0, sd = 1),
+  start = c(2008, 1),
+  frequency = 12
+)
 
-ts_plot(white_noise, 
-        title = "White Noise ~ N(0, 1)",
-        line.mode = "lines+markers",
-        Xgrid = TRUE,
-        Ygrid = TRUE,
-        Ytitle = "Series Values")
+ts_plot(
+  white_noise,
+  title = "White Noise ~ N(0, 1)",
+  line.mode = "lines+markers",
+  Xgrid = TRUE,
+  Ygrid = TRUE,
+  Ytitle = "Series Values"
+)
 
 # Ljung-Box test analysis using tidyverse
 ljung_box_results <- map_dfr(1:24, function(i) {
@@ -336,11 +392,18 @@ ljung_box_results <- map_dfr(1:24, function(i) {
 ggplot(ljung_box_results, aes(x = lag, y = p_value)) +
   geom_point(aes(color = significant), size = 3, alpha = 0.8) +
   geom_line(alpha = 0.6, color = "steelblue") +
-  geom_hline(yintercept = 0.05, color = "red", linetype = "dashed", size = 1.2) +
-  scale_color_manual(values = c("FALSE" = "steelblue", "TRUE" = "red"),
-                    name = "Significant\nat α = 0.05") +
+  geom_hline(
+    yintercept = 0.05,
+    color = "red",
+    linetype = "dashed",
+    size = 1.2
+  ) +
+  scale_color_manual(
+    values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    name = "Significant\nat α = 0.05"
+  ) +
   labs(
-    title = "Ljung-Box Test Results for White Noise Series", 
+    title = "Ljung-Box Test Results for White Noise Series",
     subtitle = "Testing for serial correlation at different lags",
     x = "Lag",
     y = "P-Value"
@@ -366,7 +429,7 @@ ljung_summary <- ljung_box_results |>
 print("Ljung-Box Test Summary:")
 print(ljung_summary)
 
-# ---------------------- Chunk 15:Component Decomposition ----------------------  
+# ---------------------- Chunk 15:Component Decomposition ----------------------
 # Apply classical decomposition to US Vehicle Sales
 vehicle_decomp <- decompose(USVSales, type = "multiplicative")
 
@@ -378,13 +441,17 @@ decomp_df <- data.frame(
   seasonal = as.numeric(vehicle_decomp$seasonal),
   random = as.numeric(vehicle_decomp$random)
 ) |>
-  pivot_longer(cols = c(observed, trend, seasonal, random),
-               names_to = "component",
-               values_to = "value") |>
+  pivot_longer(
+    cols = c(observed, trend, seasonal, random),
+    names_to = "component",
+    values_to = "value"
+  ) |>
   mutate(
-    component = factor(component, 
-                      levels = c("observed", "trend", "seasonal", "random"),
-                      labels = c("Observed", "Trend", "Seasonal", "Random"))
+    component = factor(
+      component,
+      levels = c("observed", "trend", "seasonal", "random"),
+      labels = c("Observed", "Trend", "Seasonal", "Random")
+    )
   )
 
 # decomposition plot
