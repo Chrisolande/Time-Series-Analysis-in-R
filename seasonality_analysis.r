@@ -1,7 +1,7 @@
 # ---------------------- Chunk 1: Load Packages and Datasets ----------------------
 librarian::shelf(tidyverse, TSstudio, plotly, forecast, UKgrid, xts, lubridate)
 
-# Load datasets
+# Load US natural gas data
 data(USgas)
 ts_info(USgas)
 
@@ -16,17 +16,16 @@ ts_plot(
 )
 
 # ---------------------- Chunk 3: Convert UKgrid to Hourly and Explore ----------------------
-# Convert from half-hourly to hourly data
+# Convert UKgrid from half-hourly to hourly time series
 UKgrid_xts <- extract_grid(
   type = "xts",
   columns = "ND",
   aggregate = "hourly",
   na.rm = TRUE
 )
-
 ts_info(UKgrid_xts)
 
-# Plot UK national hourly demand
+# Visualize UK national electricity demand
 ts_plot(
   UKgrid,
   title = "National Hourly Demand - UK Grid",
@@ -36,8 +35,8 @@ ts_plot(
   Ygrid = TRUE
 )
 
-# ---------------------- Chunk 4: Transform USgas to DataFrame and Analyze Seasonality ----------------------
-# Convert time series to data frame with month/year columns
+# ---------------------- Chunk 4: USgas Monthly Seasonality Summary ----------------------
+# Convert time series to dataframe with year and month
 USgas_df <- data.frame(
   year = floor(time(USgas)),
   month = cycle(USgas),
@@ -45,12 +44,12 @@ USgas_df <- data.frame(
 )
 USgas_df$month <- factor(month.abb[USgas_df$month], levels = month.abb)
 
-# Monthly summary statistics
+# Group by month and summarize
 USgas_summary <- USgas_df |>
   group_by(month) |>
   summarise(mean = mean(USgas), sd = sd(USgas))
 
-# Plot monthly mean consumption
+# Plot average monthly USgas consumption
 plot_ly(
   data = USgas_summary,
   x = ~month,
@@ -63,8 +62,8 @@ plot_ly(
     yaxis = list(title = "Mean", range = c(1500, 2700))
   )
 
-# ---------------------- Chunk 5: Create UKgrid DataFrame with Features ----------------------
-# Create hourly features
+# ---------------------- Chunk 5: UKgrid Feature Engineering ----------------------
+# Create dataframe with temporal features
 UKgrid_df <- data.frame(
   time = index(UKgrid_xts),
   UKgrid = as.numeric(UKgrid_xts)
@@ -75,13 +74,11 @@ UKgrid_df <- data.frame(
     month = factor(month.abb[month(time)], levels = month.abb)
   )
 
-# ---------------------- Chunk 6: Hourly Pattern Analysis ----------------------
+# ---------------------- Chunk 6: UKgrid Hourly Summary and Plot ----------------------
+# Summarize by hour of day
 UKgrid_hourly <- UKgrid_df |>
   group_by(hour) |>
-  summarise(
-    mean = mean(UKgrid, na.rm = TRUE),
-    sd = sd(UKgrid, na.rm = TRUE)
-  )
+  summarise(mean = mean(UKgrid, na.rm = TRUE), sd = sd(UKgrid, na.rm = TRUE))
 
 # Plot hourly mean and standard deviation
 plot_ly(UKgrid_hourly) |>
@@ -94,25 +91,36 @@ plot_ly(UKgrid_hourly) |>
     line = list(color = "red", dash = "dash", width = 3)
   ) |>
   layout(
-    title = "UK Grid Demand - Hourly Mean vs. Standard Deviation",
+    title = "UK Grid Hourly Average vs. Standard Deviation",
     yaxis = list(title = "Mean"),
     yaxis2 = list(
       overlaying = "y",
       side = "right",
       title = "Standard Deviation"
     ),
-    xaxis = list(title = "Hour of Day"),
+    xaxis = list(title = "Hour of the day"),
     legend = list(x = 0.05, y = 0.9),
     margin = list(l = 50, r = 50)
   )
 
-# ---------------------- Chunk 7: Weekday Hourly Analysis (3AM vs 9AM) ----------------------
+# Inference:
+# - Demand is low during night (12 AM–6 AM), peaks in morning/early evening.
+# - Strong correlation between mean and standard deviation.
+# - Low SD during nighttime implies consistent demand—likely due to sleeping hours.
+# - High SD during active hours suggests varying usage patterns.
+
+# ---------------------- Chunk 7: UKgrid Weekday Comparison (3AM vs 9AM) ----------------------
+# Compare demand at 3 AM and 9 AM by weekday
 UKgrid_weekday <- UKgrid_df |>
-  filter(hour %in% c(3, 9)) |>
+  filter(hour == 3 | hour == 9) |>
   group_by(hour, weekday) |>
-  summarise(mean = mean(UKgrid, na.rm = TRUE), sd = sd(UKgrid, na.rm = TRUE)) |>
+  summarise(
+    mean = mean(UKgrid, na.rm = TRUE),
+    sd = sd(UKgrid, na.rm = TRUE)
+  ) |>
   mutate(hour = factor(hour))
 
+# Plot comparison
 plot_ly(
   data = UKgrid_weekday,
   x = ~weekday,
@@ -121,18 +129,24 @@ plot_ly(
   color = ~hour
 ) |>
   layout(
-    title = "Hourly Average Demand by Weekday (3AM vs 9AM)",
+    title = "Hourly Average Demand by Weekday",
     yaxis = list(title = "Mean", range = c(30000, 75000)),
     xaxis = list(title = "Weekday")
   )
 
-# ---------------------- Chunk 8: Monthly Analysis for Selected Hours ----------------------
+# Inference:
+# - 3 AM demand is stable across weekdays and weekends (~2% difference).
+# - 9 AM demand shows strong weekday/weekend difference.
+
+# ---------------------- Chunk 8: UKgrid Monthly Comparison (3AM vs 9AM) ----------------------
+# Analyze monthly variation at 3 AM and 9 AM
 UKgrid_month <- UKgrid_df |>
-  filter(hour %in% c(3, 9)) |>
+  filter(hour == 3 | hour == 9) |>
   group_by(hour, month) |>
   summarise(mean = mean(UKgrid, na.rm = TRUE), sd = sd(UKgrid, na.rm = TRUE)) |>
   mutate(hour = factor(hour))
 
+# Plot monthly variation
 plot_ly(
   data = UKgrid_month,
   x = ~month,
@@ -141,19 +155,27 @@ plot_ly(
   color = ~hour
 ) |>
   layout(
-    title = "Hourly Demand by Month (3AM vs 9AM)",
+    title = "Hourly Average Demand by Month",
     yaxis = list(title = "Mean", range = c(30000, 75000)),
     xaxis = list(title = "Month")
   )
 
-# ---------------------- Chunk 9: Seasonal Density Plots ----------------------
-# USgas by month (raw)
+# Inference:
+# - Strong monthly pattern exists.
+# - Variations suggest presence of monthly seasonality.
+
+# ---------------------- Chunk 9: Density Plots by Time Features ----------------------
+# Monthly density of raw USgas
 ggplot(USgas_df, aes(x = USgas)) +
   geom_density(aes(fill = month)) +
   ggtitle("USgas - Kernel Density Estimates by Month") +
   facet_grid(rows = vars(month))
 
-# USgas detrended
+# Inference:
+# - Clear seasonal variation.
+# - Winter months (Nov–Jan) show flatter, longer-tailed distributions—likely weather-driven.
+
+# Detrended USgas monthly density
 USgas_df$USgas_detrend <- USgas_df$USgas - decompose(USgas)$trend
 ggplot(USgas_df, aes(x = USgas_detrend)) +
   geom_density(aes(fill = month)) +
@@ -167,7 +189,7 @@ ggplot(UKgrid_df, aes(x = UKgrid)) +
   ggtitle("UKgrid - Density by Hour of Day") +
   facet_grid(rows = vars(hour))
 
-# UKgrid at midnight by weekday
+# UKgrid by weekday at 12 AM
 UKgrid_df$weekday <- as.factor(UKgrid_df$weekday)
 UKgrid_df |>
   filter(hour == 0) |>
@@ -176,20 +198,22 @@ UKgrid_df |>
   ggtitle("UKgrid - Midnight Demand by Weekday") +
   facet_grid(rows = vars(weekday))
 
-# ---------------------- Chunk 10: Seasonal Pattern Visualizations ----------------------
-ggseasonplot(USgas, year.labels = TRUE, continuous = TRUE)
-ggseasonplot(USgas, polar = TRUE)
+# ---------------------- Chunk 10: Seasonal Visualization Techniques ----------------------
+# Classical seasonal plots
+ggseasonplot(USgas, year.labels = TRUE, continuous = TRUE) # Line
+ggseasonplot(USgas, polar = TRUE) # Circular
 
-# TSstudio seasonal plots
+# TSstudio seasonality charts
 ts_seasonal(USgas, type = "normal")
 ts_seasonal(USgas, type = "cycle")
 ts_seasonal(USgas, type = "box")
 ts_seasonal(USgas, type = "all")
 
-# ---------------------- Chunk 11: Heatmap and Quantile Visualizations ----------------------
+# ---------------------- Chunk 11: Heatmaps and Quantiles ----------------------
+# Calendar-style heatmap of natural gas consumption
 ts_heatmap(USgas, color = "Blues")
 
-# UKgrid quantile plots
+# Quantile-based summary for UKgrid
 ts_quantile(UKgrid)
 ts_quantile(UKgrid, period = "weekdays", n = 2)
 ts_quantile(UKgrid, period = "monthly", n = 2)
