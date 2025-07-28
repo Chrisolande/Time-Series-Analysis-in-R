@@ -60,7 +60,7 @@ plot_ly(
   y = ~mean,
   type = "bar",
   name = "Mean"
-) %>%
+) |>
   layout(
     title = "USgas - Monthly Average",
     yaxis = list(title = "Mean", range = c(1500, 2700))
@@ -86,15 +86,15 @@ UKgrid_hourly <- UKgrid_df |>
   summarise(mean = mean(UKgrid, na.rm = TRUE), sd = sd(UKgrid, na.rm = TRUE))
 
 # Plotting the mean and the standard deviation
-plot_ly(UKgrid_hourly) %>%
-  add_lines(x = ~hour, y = ~mean, name = "Mean") %>%
+plot_ly(UKgrid_hourly) |>
+  add_lines(x = ~hour, y = ~mean, name = "Mean") |>
   add_lines(
     x = ~hour,
     y = ~sd,
     name = "Standard Deviation",
     yaxis = "y2",
     line = list(color = "red", dash = "dash", width = 3)
-  ) %>%
+  ) |>
   layout(
     title = "The UK Grid National Demand - Hourly Average vs. Standard
 Deviation",
@@ -124,9 +124,9 @@ Deviation",
 # %%
 
 # %%
-UKgrid_weekday <- UKgrid_df %>%
-  filter(hour == 3 | hour == 9) %>%
-  group_by(hour, weekday) %>%
+UKgrid_weekday <- UKgrid_df |>
+  filter(hour == 3 | hour == 9) |>
+  group_by(hour, weekday) |>
   summarise(
     mean = mean(UKgrid, na.rm = TRUE),
     sd = sd(UKgrid, na.rm = TRUE)
@@ -138,7 +138,7 @@ plot_ly(
   y = ~mean,
   type = "bar",
   color = ~hour
-) %>%
+) |>
   layout(
     title = "The Hourly Average Demand by Weekday",
     yaxis = list(title = "Mean", range = c(30000, 75000)),
@@ -150,9 +150,9 @@ plot_ly(
 # there is a significant difference between the weekday and weekend demand at 9 a.m
 # %%
 # Analyze the data at 3 and 9am but group by month instead of day
-UKgrid_month <- UKgrid_df %>%
-  filter(hour == 3 | hour == 9) %>%
-  group_by(hour, month) %>%
+UKgrid_month <- UKgrid_df |>
+  filter(hour == 3 | hour == 9) |>
+  group_by(hour, month) |>
   summarise(mean = mean(UKgrid, na.rm = TRUE), sd = sd(UKgrid, na.rm = TRUE))
 
 UKgrid_month$hour <- factor(UKgrid_month$hour)
@@ -162,7 +162,7 @@ plot_ly(
   y = ~mean,
   type = "bar",
   color = ~hour
-) %>%
+) |>
   layout(
     title = "The Hourly Average Demand by Weekday",
     yaxis = list(title = "Mean", range = c(30000, 75000)),
@@ -191,3 +191,52 @@ ggplot(USgas_df, aes(x = USgas)) +
 # time.
 # %%
 head(USgas_df)
+
+# %%
+USgas_df$USgas_detrend <- USgas_df$USgas - decompose(USgas)$trend
+ggplot(USgas_df, aes(x = USgas_detrend)) +
+  geom_density(aes(fill = month)) +
+  ggtitle("USgas - Kernel Density Estimates by Month") +
+  facet_grid(rows = vars(as.factor(month)))
+# %%
+# Density plot - 24 hour frequency
+UKgrid_df$hour <- as.factor(UKgrid_df$hour)
+ggplot(UKgrid_df, aes(x = UKgrid)) +
+  geom_density(aes(fill = hour)) +
+  ggtitle("UKgrid - Kernel Density Estimates by Hour of the day") +
+  facet_grid(rows = vars(as.factor(hour)))
+
+# %%
+UKgrid_df$weekday <- as.factor(UKgrid_df$weekday)
+UKgrid_df |>
+  filter(hour == 0) |>
+  ggplot(aes(x = UKgrid)) +
+  geom_density(aes(fill = as.factor(weekday))) +
+  ggtitle("UKgrid - Kernel Density Estimates by Hour of the day") +
+  facet_grid(rows = vars(as.factor(weekday)))
+
+# Using the forecast package
+# %%
+ggseasonplot(USgas, year.labels = TRUE, continuous = TRUE)
+# Inference:
+# In the plot we can observe a strong repeated pattern which indicates presence of monthly seasonal pattern
+# %%
+ggseasonplot(USgas, polar = TRUE)
+# %% Using the TSstudio package
+ts_seasonal(USgas, type = "normal")
+# %%
+ts_seasonal(USgas, type = "cycle")
+# %%
+ts_seasonal(USgas, type = "box")
+# %%
+ts_seasonal(USgas, type = "all")
+
+# %%
+ts_heatmap(USgas, color = "Blues")
+
+# %%
+ts_quantile(UKgrid)
+# %%
+ts_quantile(UKgrid, period = "weekdays", n = 2)
+# %%
+ts_quantile(UKgrid, period = "monthly", n = 2)
