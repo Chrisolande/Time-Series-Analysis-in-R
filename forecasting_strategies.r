@@ -216,7 +216,7 @@ print(forecast_summary)
 cat("\n=== FINAL MODEL DIAGNOSTICS ===\n")
 checkresiduals(md_final)
 
-# Additional diagnostic plots
+
 ts_plot(
   residuals(md_final),
   title = "Final Model Residuals",
