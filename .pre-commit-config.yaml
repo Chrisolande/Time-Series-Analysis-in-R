@@ -1,0 +1,71 @@
+---
+minimum_pre_commit_version: 3.0.0
+fail_fast: false
+repos:
+  # R-specific hooks
+  - repo: https://github.com/lorenzwalthert/precommit
+    rev: v0.4.2
+    hooks:
+      - id: style-files
+        args: [--style_pkg=styler, --style_fun=tidyverse_style]
+      - id: parsable-R
+      - id: no-browser-statement
+      - id: no-debug-statement
+      - id: lintr
+      - id: spell-check
+        exclude: >
+          (?x)^(
+          .*\.feather|
+          .*\.jpeg|
+          .*\.pdf|
+          .*\.png|
+          .*\.RData|
+          .*\.rds|
+          .*\.Rds|
+          .*\.Rproj|
+          .*\.sh|
+          (.*/|)\.gitignore|
+          (.*/|)\.lintr|
+          (.*/|)\.pre-commit-.*|
+          (.*/|)\.Rbuildignore|
+          (.*/|)NAMESPACE|
+          (.*/|)WORDLIST|
+          data/.*|
+          )$
+      - id: roxygenize
+        additional_dependencies:
+          - roxygen2
+      - id: use-tidy-description
+      - id: readme-rmd-rendered
+      # - id: deps-in-desc
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.Rd$'
+      - id: end-of-file-fixer
+        exclude: '\.Rd$'
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=20000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: file-contents-sorter
+        files: '^\.Rbuildignore$'
+
+  # Security scanning
+  # - repo: https://github.com/gitleaks/gitleaks
+  #   rev: v8.24.2
+  #   hooks:
+  #     - id: gitleaks
+
+  # Local hooks for R artifacts
+  - repo: local
+    hooks:
+      - id: forbid-r-artifacts
+        name: Don't commit R artifacts
+        entry: Cannot commit .Rhistory, .RData, .Rds or .rds files
+        language: fail
+        files: '\.(Rhistory|RData|Rds|rds)$'
