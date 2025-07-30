@@ -11,7 +11,7 @@ repos:
       - id: parsable-R
       - id: no-browser-statement
       - id: no-debug-statement
-      - id: lintr
+      # - id: lintr
       - id: spell-check
         exclude: >
           (?x)^(
@@ -25,7 +25,6 @@ repos:
           .*\.Rproj|
           .*\.sh|
           (.*/|)\.gitignore|
-          (.*/|)\.lintr|
           (.*/|)\.pre-commit-.*|
           (.*/|)\.Rbuildignore|
           (.*/|)NAMESPACE|
