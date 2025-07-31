@@ -12,7 +12,8 @@ librarian::shelf(
   recipes,
   workflows,
   yardstick,
-  tune
+  tune,
+  forecast
 )
 
 # %%
@@ -224,10 +225,145 @@ mape_md2 <- c(
 )
 mape_md2
 
-# %%
+# The tslm function and the forecast package
 
 # %%
+usgas_split <- ts_split(USgas, sample.out = h)
+train.ts <- usgas_split$train
+test.ts <- usgas_split$test
 
 # %%
+md3 <- tslm(train.ts ~ season + trend + I(trend^2))
+# %%
+check_model(md3)
+
+# Forecasting series with multiseasonality components
+# %%
+library(UKgrid)
+
+uk_daily <- extract_grid(
+  type = "data.frame",
+  columns = "ND",
+  aggregate = "daily"
+)
+# %%
+head(uk_daily)
+# %%
+ts_plot(
+  uk_daily,
+  title = "The UK National Demand for Electricity",
+  Ytitle = "MW",
+  Xtitle = "Year"
+)
+# %%
+uk_daily |>
+  filter(year(uk_daily$TIMESTAMP) >= 2016) |>
+  ts_heatmap(title = "UK the Daily National Grid Demand Heatmap")
+
+# Feature Engineering
+# %%
+uk_daily <- uk_daily |>
+  mutate(
+    wday = wday(TIMESTAMP, label = TRUE),
+    month = month(TIMESTAMP, label = TRUE),
+    lag365 = dplyr::lag(ND, 365)
+  ) |>
+  filter(!is.na(lag365)) |>
+  arrange(TIMESTAMP)
 
 # %%
+head(uk_daily)
+# %%
+# Convert to a ts object since tslm expects this format
+start_date <- min(uk_daily$TIMESTAMP)
+start <- c(year(start_date), yday(start_date))
+# %%
+# Use ts to set the ts object
+uk_ts <- ts(uk_daily$ND, start = start, frequency = 365)
+# %%
+# Plot the autocorrelation function
+acf(uk_ts, lag.max = 365 * 4)
+# the series has a strong relationship
+# with the seasonal lags, in particular lag 365, the first lag.
+# %%
+# Create partitions
+h <- 365
+uk_partitions <- ts_split(uk_ts, sample.out = h)
+train_ts <- uk_partitions$train
+test_ts <- uk_partitions$test
+# %%
+train_df <- uk_daily[1:(nrow(uk_daily) - h), ]
+test_df <- uk_daily[(nrow(uk_daily) - h + 1):nrow(uk_daily), ]
+# %%
+c(dim(train_df), dim(test_df))
+# %%
+# Train, Test and Forecast the model
+md_tslm1 <- tslm(train_ts ~ season + trend)
+fc_tslm1 <- forecast(md_tslm1, h = h)
+test_forecast(actual = uk_ts, forecast.obj = fc_tslm1, test = test_ts)
+# We can observe from the preceding performance plot that the baseline model is doing a
+# great job of capturing both the series trend and the day of the year seasonality. On the other
+# hand, it fails to capture the oscillation that related to the day of the week.
+
+# %%
+accuracy(fc_tslm1, test_ts) # MAPE Scoreis 6.29 and 7.16 on training and testing set respectively
+# %%
+# Add more features!
+md_tslm2 <- tslm(train_ts ~ season + trend + wday, data = train_df)
+fc_tslm2 <- forecast(md_tslm2, h = h, newdata = test_df)
+test_forecast(actual = uk_ts, forecast.obj = fc_tslm2, test = test_ts)
+accuracy(fc_tslm2, test_ts)
+# The MAPE is reduced to 3.16 and 4.68 on train and test sets respectively
+# %%
+# Add the lags
+md_tslm3 <- tslm(
+  train_ts ~ season + trend + wday + month + lag365,
+  data = train_df
+)
+fc_tslm3 <- forecast(md_tslm3, h = h, newdata = test_df)
+test_forecast(actual = uk_ts, forecast.obj = fc_tslm3, test = test_ts)
+accuracy(fc_tslm3, test_ts)
+# MAPE at 3.16 and 4.72
+
+# Model selection
+# %%
+summary(md_tslm3)$coefficients %>% tail(1)
+# %%
+anova(md_tslm3) # The lags are statistically significant, we chose the final model
+# %%
+final_md <- tslm(
+  uk_ts ~ season + trend + wday + month + lag365,
+  data = uk_daily
+)
+
+# Residual Analysis
+
+# %%
+checkresiduals(final_md)
+# the residuals are not white
+# noise, as some autocorrelation exists between the residuals series and their lags. This is
+# technically an indication that the model did not capture all the patterns or information that
+# exists in the series
+# %%
+# Finalize the forecast
+uk_fc_df <- data.frame(
+  date = seq.Date(
+    from = max(uk_daily$TIMESTAMP) +
+      days(1),
+    by = "day",
+    length.out = h
+  )
+)
+
+# %%
+uk_fc_df$wday <- factor(wday(uk_fc_df$date, label = TRUE), ordered = FALSE)
+uk_fc_df$month <- factor(month(uk_fc_df$date, label = TRUE), ordered = FALSE)
+uk_fc_df$lag365 <- tail(uk_daily$ND, h)
+# %%
+ukgrid_fc <- forecast(final_md, h = h, newdata = uk_fc_df)
+plot_forecast(
+  ukgrid_fc,
+  title = "The UK National Demand for Electricity Forecast",
+  Ytitle = "MW",
+  Xtitle = "Year"
+)
