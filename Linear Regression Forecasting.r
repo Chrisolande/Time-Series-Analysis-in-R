@@ -1,19 +1,15 @@
-# Forecasting with Linear Regression using Tidymodels
+# Forecasting with Linear Regression
 
 # %%
 
 librarian::shelf(
   TSstudio,
-  lubridate,
   plotly,
   tidymodels,
   performance,
-  parsnip,
-  recipes,
-  workflows,
-  yardstick,
-  tune,
-  forecast
+  forecast,
+  tidyverse,
+  UKgrid
 )
 
 # %%
@@ -31,7 +27,8 @@ ts_plot(
 ts_decompose(USgas)
 
 # %%
-usgas_df <- ts_to_prophet(USgas)
+usgas_df <- ts_to_prophet(USgas) |>
+  mutate(trend = row_number(), seasonal = factor(month(ds, label = TRUE)))
 
 # %%
 class(usgas_df)
@@ -40,18 +37,12 @@ class(usgas_df)
 head(usgas_df)
 
 # %%
-usgas_df$trend <- 1:nrow(usgas_df)
-
-# %%
-usgas_df$seasonal <- factor(month(usgas_df$ds, label = TRUE), ordered = FALSE)
-
-# %%
-head(usgas_df)
-
-# %%
 h <- 12 # setting a testing partition length
-train <- usgas_df[1:(nrow(usgas_df) - h), ]
-test <- usgas_df[(nrow(usgas_df) - h + 1):nrow(usgas_df), ]
+usgas_split <- usgas_df |>
+  mutate(split = if_else(row_number() <= (n() - h), "train", "test"))
+
+train <- usgas_split |> filter(split == "train")
+test <- usgas_split |> filter(split == "test")
 
 # %%
 # Define trend model using tidymodels
@@ -64,12 +55,17 @@ md_trend <- trend_workflow |> fit(data = train)
 
 # %%
 # Add predictions to train and test datasets
-train$yhat <- predict(md_trend, new_data = train)$.pred
-test$yhat <- predict(md_trend, new_data = test)$.pred
+train <- train |>
+  mutate(yhat = predict(md_trend, new_data = train)$.pred)
+test <- test |>
+  mutate(yhat = predict(md_trend, new_data = test)$.pred)
 
 # %%
+# Model Diagnostics
 check_model(extract_fit_engine(md_trend))
-
+trend_metrics <- train |>
+  metrics(truth = y, estimate = yhat) |>
+  print()
 # %%
 plot_lm <- function(data, train, test, title = NULL) {
   p <- plot_ly(
@@ -112,9 +108,11 @@ plot_lm(
 )
 
 # %%
-mape_trend <- c(
-  mean(abs(train$y - train$yhat) / train$y),
-  mean(abs(test$y - test$yhat) / test$y)
+mape_trend <- bind_rows(
+  train |>
+    summarise(dataset = "train", mape = mean(abs(y - yhat) / y)),
+  test |>
+    summarise(dataset = "test", mape = mean(abs(y - yhat) / y))
 )
 mape_trend
 
@@ -134,8 +132,10 @@ md_seasonal <- seasonal_workflow |> fit(data = train)
 check_model(extract_fit_engine(md_seasonal))
 
 # %%
-train$yhat <- predict(md_seasonal, new_data = train)$.pred
-test$yhat <- predict(md_seasonal, new_data = test)$.pred
+train <- train |>
+  mutate(yhat = predict(md_seasonal, new_data = train)$.pred)
+test <- test |>
+  mutate(yhat = predict(md_seasonal, new_data = test)$.pred)
 
 # %%
 plot_lm(
@@ -146,9 +146,10 @@ plot_lm(
 )
 
 # %%
-mape_seasonal <- c(
-  mean(abs(train$y - train$yhat) / train$y),
-  mean(abs(test$y - test$yhat) / test$y)
+mape_seasonal <- bind_rows(
+  train |>
+    summarise(dataset = "train", mape = mean(abs(y - yhat) / y)),
+  test |> summarise(dataset = "test", mape = mean(abs(y - yhat) / y))
 )
 mape_seasonal
 
@@ -172,8 +173,12 @@ compare_performance(
 # that suggest the md1 is overwhelmingly the best of the models being compared!
 
 # %%
-train$yhat <- predict(md1, new_data = train)$.pred
-test$yhat <- predict(md1, new_data = test)$.pred
+
+train <- train |>
+  mutate(yhat = predict(md1, new_data = train)$.pred)
+
+test <- test |>
+  mutate(yhat = predict(md1, new_data = test)$.pred)
 plot_lm(
   data = usgas_df,
   train = train,
@@ -183,24 +188,37 @@ Series"
 )
 
 # %%
-mape_md1 <- c(
-  mean(abs(train$y - train$yhat) / train$y),
-  mean(abs(test$y - test$yhat) / test$y)
-)
-mape_md1
+mape_md1 <- bind_rows(
+  train |>
+    summarise(
+      dataset = "train",
+      mape = mean(abs(y - yhat) / y)
+    ),
+  test |>
+    summarise(
+      dataset = "test",
+      mape = mean(abs(y - yhat) / y)
+    )
+) |>
+  print()
+
 # Lower MAPE compared to the others, but there is a problem, the plot suggests too linear and
 # It misses the structural break of the series trend, use polynomial regression to capture the non linear trends
 
 # %%
-train$trend_sq <- train$trend^2
-test$trend_sq <- test$trend^2
+train <- train |> mutate(trend_sq = trend^2)
+test <- test |> mutate(trend_sq = trend^2)
 poly_recipe <- recipe(y ~ seasonal + trend + trend_sq, data = train)
 poly_workflow <- workflow() |>
   add_recipe(poly_recipe) |>
   add_model(trend_model)
 md2 <- poly_workflow |> fit(data = train)
-train$yhat <- predict(md2, new_data = train)$.pred
-test$yhat <- predict(md2, new_data = test)$.pred
+train <- train %>%
+  mutate(yhat = predict(md2, new_data = train)$.pred)
+
+test <- test %>%
+  mutate(yhat = predict(md2, new_data = test)$.pred)
+
 plot_lm(
   data = usgas_df,
   train = train,
@@ -219,33 +237,41 @@ compare_performance(
 ) # md2 is better than the others based on the AICs and BICs
 
 # %%
-mape_md2 <- c(
-  mean(abs(train$y - train$yhat) / train$y),
-  mean(abs(test$y - test$yhat) / test$y)
-)
-mape_md2
+mape_md2 <- bind_rows(
+  train %>%
+    summarise(
+      dataset = "train",
+      mape = mean(abs(y - yhat) / y)
+    ),
+  test %>%
+    summarise(
+      dataset = "test",
+      mape = mean(abs(y - yhat) / y)
+    )
+) %>%
+  print()
 
 # The tslm function and the forecast package
 
 # %%
-usgas_split <- ts_split(USgas, sample.out = h)
-train.ts <- usgas_split$train
-test.ts <- usgas_split$test
+usgas_split_ts <- ts_split(USgas, sample.out = h)
+train_ts <- usgas_split_ts$train
+test_ts <- usgas_split_ts$test
 
 # %%
-md3 <- tslm(train.ts ~ season + trend + I(trend^2))
+md3 <- tslm(train_ts ~ season + trend + I(trend^2))
 # %%
 check_model(md3)
 
 # Forecasting series with multiseasonality components
 # %%
-library(UKgrid)
 
 uk_daily <- extract_grid(
   type = "data.frame",
   columns = "ND",
   aggregate = "daily"
-)
+) |>
+  as_tibble()
 # %%
 head(uk_daily)
 # %%
@@ -274,7 +300,7 @@ uk_daily <- uk_daily |>
 # %%
 head(uk_daily)
 # %%
-# Convert to a ts object since tslm expects this format
+# Convert to ts object for tslm compatibility
 start_date <- min(uk_daily$TIMESTAMP)
 start <- c(year(start_date), yday(start_date))
 # %%
@@ -292,8 +318,8 @@ uk_partitions <- ts_split(uk_ts, sample.out = h)
 train_ts <- uk_partitions$train
 test_ts <- uk_partitions$test
 # %%
-train_df <- uk_daily[1:(nrow(uk_daily) - h), ]
-test_df <- uk_daily[(nrow(uk_daily) - h + 1):nrow(uk_daily), ]
+train_df <- uk_daily %>% slice_head(n = nrow(uk_daily) - h)
+test_df <- uk_daily %>% slice_tail(n = h)
 # %%
 c(dim(train_df), dim(test_df))
 # %%
@@ -306,30 +332,44 @@ test_forecast(actual = uk_ts, forecast.obj = fc_tslm1, test = test_ts)
 # hand, it fails to capture the oscillation that related to the day of the week.
 
 # %%
-accuracy(fc_tslm1, test_ts) # MAPE Scoreis 6.29 and 7.16 on training and testing set respectively
+accuracy(fc_tslm1, test_ts) |>
+  as_tibble(rownames = "set") |>
+  print()
+# MAPE Scoreis 6.29 and 7.16 on training and testing set respectively
 # %%
 # Add more features!
 md_tslm2 <- tslm(train_ts ~ season + trend + wday, data = train_df)
 fc_tslm2 <- forecast(md_tslm2, h = h, newdata = test_df)
 test_forecast(actual = uk_ts, forecast.obj = fc_tslm2, test = test_ts)
-accuracy(fc_tslm2, test_ts)
+accuracy(fc_tslm2, test_ts) |>
+  as_tibble(rownames = "set") |>
+  print()
 # The MAPE is reduced to 3.16 and 4.68 on train and test sets respectively
 # %%
-# Add the lags
+# Full model with all features
 md_tslm3 <- tslm(
   train_ts ~ season + trend + wday + month + lag365,
   data = train_df
 )
 fc_tslm3 <- forecast(md_tslm3, h = h, newdata = test_df)
 test_forecast(actual = uk_ts, forecast.obj = fc_tslm3, test = test_ts)
-accuracy(fc_tslm3, test_ts)
+accuracy(fc_tslm3, test_ts) |>
+  as_tibble(rownames = "set") |>
+  print()
 # MAPE at 3.16 and 4.72
 
 # Model selection
 # %%
-summary(md_tslm3)$coefficients %>% tail(1)
+md_tslm3 |>
+  tidy() |>
+  slice_tail(n = 1) |>
+  print()
 # %%
-anova(md_tslm3) # The lags are statistically significant, we chose the final model
+md_tslm3 |>
+  anova() |>
+  tidy() |>
+  print()
+# The lags are statistically significant, we chose the final model
 # %%
 final_md <- tslm(
   uk_ts ~ season + trend + wday + month + lag365,
@@ -345,20 +385,21 @@ checkresiduals(final_md)
 # technically an indication that the model did not capture all the patterns or information that
 # exists in the series
 # %%
-# Finalize the forecast
-uk_fc_df <- data.frame(
+# Finalize the forecast prep
+uk_fc_df <- tibble(
   date = seq.Date(
     from = max(uk_daily$TIMESTAMP) +
       days(1),
     by = "day",
     length.out = h
   )
-)
+) |>
+  mutate(
+    wday = factor(wday(date, label = TRUE), ordered = FALSE),
+    month = factor(month(date, label = TRUE), ordered = FALSE),
+    lag365 = tail(uk_daily$ND, h)
+  )
 
-# %%
-uk_fc_df$wday <- factor(wday(uk_fc_df$date, label = TRUE), ordered = FALSE)
-uk_fc_df$month <- factor(month(uk_fc_df$date, label = TRUE), ordered = FALSE)
-uk_fc_df$lag365 <- tail(uk_daily$ND, h)
 # %%
 ukgrid_fc <- forecast(final_md, h = h, newdata = uk_fc_df)
 plot_forecast(
@@ -367,3 +408,5 @@ plot_forecast(
   Ytitle = "MW",
   Xtitle = "Year"
 )
+
+# %%
