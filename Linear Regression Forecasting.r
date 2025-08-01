@@ -238,10 +238,10 @@ poly_workflow <- workflow() |>
   add_recipe(poly_recipe) |>
   add_model(trend_model)
 md2 <- poly_workflow |> fit(data = train)
-train <- train %>%
+train <- train |>
   mutate(yhat = predict(md2, new_data = train)$.pred)
 
-test <- test %>%
+test <- test |>
   mutate(yhat = predict(md2, new_data = test)$.pred)
 
 plot_lm(
@@ -269,17 +269,17 @@ compare_performance(
 
 # ---------------------- Chunk 24: Calculate Polynomial MAPE ----------------------
 mape_md2 <- bind_rows(
-  train %>%
+  train |>
     summarise(
       dataset = "train",
       mape = mean(abs(y - yhat) / y)
     ),
-  test %>%
+  test |>
     summarise(
       dataset = "test",
       mape = mean(abs(y - yhat) / y)
     )
-) %>%
+) |>
   print()
 
 print("Final Model Comparison:")
@@ -373,8 +373,8 @@ train_ts <- uk_partitions$train
 test_ts <- uk_partitions$test
 
 # ---------------------- Chunk 37: Create UK Data Frame Splits ----------------------
-train_df <- uk_daily %>% slice_head(n = nrow(uk_daily) - h)
-test_df <- uk_daily %>% slice_tail(n = h)
+train_df <- uk_daily |> slice_head(n = nrow(uk_daily) - h)
+test_df <- uk_daily |> slice_tail(n = h)
 
 # ---------------------- Chunk 38: Fit Baseline TSLM Model ----------------------
 md_tslm1 <- tslm(train_ts ~ season + trend)
