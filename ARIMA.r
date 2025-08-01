@@ -365,3 +365,98 @@ accuracy(usgas_test_fc, test)
 test_forecast(USgas, forecast.obj = usgas_test_fc, test = test)
 
 # %%
+final_md <- arima(
+  USgas,
+  order = c(1, 1, 1),
+  seasonal = list(order = c(2, 1, 1))
+)
+# %%
+checkresiduals(final_md, lag = 60)
+
+# the residuals are white noise and normally distributed. p-value is 0.297 > 0.05 good to go
+# %%
+usgas_fc <- forecast(final_md, h = 12)
+plot_forecast(
+  usgas_fc,
+  title = "US Natural Gas Consumption - Forecast",
+  Ytitle = "Billion Cubic Feet",
+  Xtitle = "Year"
+)
+
+# Using the auto.arima function to bypass the previous manual tuning
+# %%
+usgas_auto_md1 <- auto.arima(train)
+usgas_auto_md1
+# %%
+usgas_auto_md1
+# %%
+usgas_auto_md2 <- auto.arima(
+  train,
+  max.order = 5,
+  D = 1,
+  d = 1,
+  stepwise = FALSE,
+  approximation = FALSE
+)
+
+usgas_auto_md2
+
+# Violation of the white noise assumption
+# %%
+df <- ts_to_prophet(AirPassengers)
+head(df)
+# %%
+df <- df |>
+  mutate(
+    date = as.Date(ds),
+    lag12 = lag(y, 12),
+    month = factor(month(date, label = TRUE), ordered = FALSE),
+    trend = row_number()
+  )
+# %%
+par <- ts_split(ts.obj = AirPassengers, sample.out = 12)
+train <- par$train
+test <- par$test
+# %%
+train_df <- df[1:(nrow(df) - 12), ]
+test_df <- df[(nrow(df) - 12 + 1):nrow(df), ]
+# %%
+md1 <- tslm(train ~ season + trend + lag12, data = train_df)
+# %%
+checkresiduals(md1)
+# the residuals series has a strong correlation with its past lags,
+# and therefore the series is not white noise. We can conclude from the residuals plot that the
+# regression model could not capture all the series patterns
+
+# Model the residuals of the ARIMA model
+# %%
+md2 <- auto.arima(
+  train,
+  xreg = cbind(
+    model.matrix(~month, train_df)[, -1],
+    train_df$trend,
+    train_df$lag12
+  ),
+  seasonal = TRUE,
+  stepwise = FALSE,
+  approximation = FALSE
+)
+# %%
+summary(md2)
+# %%
+checkresiduals(md2)
+# %%
+fc1 <- forecast(md1, newdata = test_df)
+fc2 <- forecast(
+  md2,
+  xreg = cbind(
+    model.matrix(~month, test_df)[, -1],
+    test_df$trend,
+    test_df$lag12
+  )
+)
+
+# %%
+accuracy(fc1, test)
+# %%
+accuracy(fc2, test)
