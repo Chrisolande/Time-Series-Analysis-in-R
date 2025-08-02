@@ -1,0 +1,719 @@
+---
+title: 'HighChart visualizations'
+author: "Chris Olande"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    number_sections: true
+    fig_caption: true
+    toc: true
+    fig_width: 7
+    fig_height: 4.5
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+---
+
+# Highcharter R Visualization Examples
+
+This document demonstrates various chart types using the `highcharter` package for creating interactive visualizations in R.
+
+## Setup
+```{r setup}
+librarian::shelf(highcharter, forecast, quantmod, TSstudio, tidyverse, zoo)
+```
+
+## 1. Scatter Plot - Palmer Penguins
+Creates an interactive scatter plot showing the relationship between flipper length and bill length, grouped by penguin species.
+```{r penguin_scatter}
+data(penguins, package = "palmerpenguins")
+hchart(
+  penguins,
+  "scatter",
+  hcaes(x = flipper_length_mm, y = bill_length_mm, group = species)
+)
+```
+
+## 2. Histogram - Penguin Bill Length Distribution
+Displays the distribution of penguin bill lengths as a histogram.
+```{r penguin_histogram}
+hchart(penguins$bill_length_mm, name = "Bill Length", color = "#17b8b6")
+```
+
+## 3. Time Series Forecast - Air Passengers
+Shows ARIMA forecast for the classic AirPassengers dataset with confidence intervals.
+```{r air_passengers_forecast}
+airforecast <- forecast(auto.arima(AirPassengers), level = 95)
+hchart(airforecast)
+```
+
+## 4. Stock Chart - Google & Amazon
+Creates a financial stock chart with candlestick (OHLC) data for Google and Amazon stocks.
+```{r stock_chart_multiple}
+x <- getSymbols("GOOG", auto.assign = FALSE)
+y <- getSymbols("AMZN", auto.assign = FALSE)
+
+highchart(type = "stock") |>
+  hc_add_series(x) |>
+  hc_add_series(y, type = "ohlc")
+```
+
+## 5. World Map - GNI Per Capita
+Interactive world map showing Gross National Income per capita with logarithmic color scale.
+```{r world_map_gni}
+data(GNI2014, package = "treemap")
+hcmap(
+  "custom/world-robinson-lowres",
+  data = GNI2014,
+  name = "Gross national income per capita",
+  value = "GNI",
+  borderWidth = 0,
+  nullColor = "#d3d3d3",
+  joinBy = c("iso-a3", "iso3")
+) |>
+  hc_colorAxis(
+    stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)),
+    type = "logarithmic"
+  )
+```
+
+## 6. Treemap - Car Manufacturers
+Treemap visualization showing car manufacturers by count and model diversity.
+```{r treemap_cars}
+mpgman <- mpg |>
+  group_by(manufacturer) |>
+  summarise(n = n(), unique = length(unique(model))) |>
+  arrange(-n, -unique)
+
+hchart(mpgman, "treemap", hcaes(x = manufacturer, value = n, color = unique))
+```
+
+## 7. Multi-line Chart - Economic Indicators
+Time series chart showing multiple economic indicators (population, unemployment) over time.
+```{r economic_indicators}
+data(diamonds, economics_long, package = "ggplot2")
+economics_long2 <- economics_long |>
+  filter(variable %in% c("pop", "uempmed", "unemploy"))
+
+hchart(economics_long2, "line", hcaes(x = date, y = value01, group = variable))
+```
+
+## 8. Histogram - Diamond Prices
+Simple histogram of diamond prices from the diamonds dataset.
+```{r diamond_price_histogram}
+x <- diamonds$price
+hchart(x)
+```
+
+## 9. Density Plot - Diamond Prices
+Area chart showing the density distribution of diamond prices.
+```{r diamond_price_density}
+hchart(density(x), type = "area", color = "#B71C1C", name = "Price")
+```
+
+## 10. Bar Chart - Diamond Cut Quality
+Column chart showing the frequency of different diamond cut qualities.
+```{r diamond_cut_bar}
+x <- diamonds$cut
+hchart(x, type = "column")
+```
+
+## 11. Time Series - Lake Huron Levels
+Line chart of Lake Huron water levels from 1875-1972.
+```{r lake_huron_ts}
+hchart(LakeHuron, name = "Level") |>
+  hc_title(text = "Level of Lake Huron 1875–1972")
+```
+
+## 12. STL Decomposition - Air Passengers
+Seasonal and trend decomposition of the AirPassengers time series.
+```{r stl_decomposition}
+x <- stl(log(AirPassengers), "per")
+hchart(x)
+```
+
+## 13. Alternative Time Series Decomposition
+Using TSstudio package for time series decomposition visualization.
+```{r tsstudio_decomposition}
+ts_decompose(AirPassengers)
+```
+
+## 14. ETS Forecast - US Accidental Deaths
+Exponential smoothing forecast for US accidental deaths data.
+```{r ets_forecast}
+x <- forecast(ets(USAccDeaths), h = 48, level = 95)
+hchart(x)
+```
+
+## 15. Single Stock Chart - Google
+Simple stock price chart for Google (GOOG).
+```{r single_stock_chart}
+x <- getSymbols("GOOG", auto.assign = FALSE)
+hchart(x)
+```
+
+## 16. Multiple Time Series - Deaths Data
+Combined chart showing male and female deaths over time.
+```{r multiple_deaths_ts}
+x <- cbind(mdeaths, fdeaths)
+hchart(x)
+```
+
+## 17. PACF Plot - Partial Autocorrelation
+Partial autocorrelation function plot for differenced AirPassengers data.
+```{r pacf_plot}
+x <- pacf(diff(AirPassengers), plot = FALSE)
+hchart(x)
+```
+
+## 18. PCA Analysis - US Arrests
+Principal component analysis visualization of US Arrests data.
+```{r pca_analysis}
+hchart(princomp(USArrests, cor = TRUE))
+```
+
+## 19. Correlation Matrix - Motor Trends
+Heatmap showing correlations between variables in the mtcars dataset.
+```{r correlation_matrix}
+hchart(cor(mtcars))
+```
+
+## Additional Chart Examples
+
+### 20. Bubble Chart - Cars Data
+```{r bubble_chart_cars}
+hchart(
+  mtcars,
+  "bubble",
+  hcaes(x = wt, y = mpg, size = hp, group = cyl)
+) |>
+  hc_title(text = "Car Weight vs MPG vs Horsepower")
+```
+
+### 21. Pie Chart - Transmission Types
+```{r pie_chart_transmission}
+mtcars_summary <- mtcars |>
+  count(am) |>
+  mutate(transmission = ifelse(am == 0, "Automatic", "Manual"))
+
+hchart(mtcars_summary, "pie", hcaes(name = transmission, y = n)) |>
+  hc_title(text = "Transmission Types in mtcars Dataset")
+```
+
+### 22. Area Chart - Stacked Economic Data
+```{r area_chart_economic}
+economics_wide <- economics |>
+  select(date, unemploy, pop) |>
+  mutate(
+    unemploy_thousands = unemploy / 1000,
+    pop_millions = pop / 1000000
+  )
+
+highchart() |>
+  hc_add_series(
+    economics_wide,
+    "area",
+    hcaes(x = date, y = unemploy_thousands),
+    name = "Unemployment (thousands)"
+  ) |>
+  hc_add_series(
+    economics_wide,
+    "area",
+    hcaes(x = date, y = pop_millions),
+    name = "Population (millions)",
+    yAxis = 1
+  ) |>
+  hc_yAxis_multiples(
+    list(title = list(text = "Unemployment")),
+    list(title = list(text = "Population"), opposite = TRUE)
+  ) |>
+  hc_title(text = "US Population and Unemployment Over Time")
+```
+
+### 23. Box Plot - Diamond Prices by Cut
+```{r box_plot_diamonds}
+hcboxplot(
+  x = diamonds$price,
+  var = diamonds$cut,
+  name = "Price",
+  color = "#2980b9"
+) |>
+  hc_title(text = "Diamond Prices by Cut Quality")
+```
+
+### 24. Polar Chart - Wind Rose
+```{r polar_chart_wind}
+set.seed(123)
+wind_data <- data.frame(
+  direction = seq(0, 350, 10),
+  speed = abs(rnorm(36, 10, 3))
+)
+
+hchart(wind_data, "column", hcaes(x = direction, y = speed), polar = TRUE) |>
+  hc_title(text = "Wind Speed by Direction") |>
+  hc_pane(startAngle = 0, endAngle = 360)
+```
+
+### 25. Gauge Chart - Performance Metric
+```{r gauge_chart_performance}
+highchart() |>
+  hc_chart(type = "solidgauge") |>
+  hc_pane(
+    startAngle = -90,
+    endAngle = 90,
+    background = list(
+      outerRadius = "100%",
+      innerRadius = "60%",
+      shape = "arc"
+    )
+  ) |>
+  hc_add_series(
+    data = list(85),
+    name = "Performance",
+    dataLabels = list(
+      enabled = TRUE,
+      format = "<span style='font-size: 25px'>{y}%</span>"
+    )
+  ) |>
+  hc_yAxis(
+    min = 0,
+    max = 100,
+    title = list(text = "Performance Score")
+  ) |>
+  hc_title(text = "Performance Dashboard")
+```
+
+### 26. Waterfall Chart - Financial Analysis
+```{r waterfall_chart_financial}
+financial_data <- data.frame(
+  category = c("Starting", "Revenue", "Costs", "Taxes", "Ending"),
+  value = c(100, 50, -30, -10, 110),
+  type = c("start", "positive", "negative", "negative", "end")
+)
+
+hchart(financial_data, "waterfall", hcaes(name = category, y = value)) |>
+  hc_title(text = "Financial Waterfall Analysis")
+```
+
+### 27. Funnel Chart - Conversion Rates
+```{r funnel_chart_conversion}
+funnel_data <- data.frame(
+  stage = c("Visitors", "Leads", "Prospects", "Customers"),
+  count = c(1000, 400, 200, 50)
+)
+
+hchart(funnel_data, "funnel", hcaes(name = stage, y = count)) |>
+  hc_title(text = "Sales Funnel Conversion")
+```
+
+## Extended Time Series Examples
+
+### 28. Seasonal Heatmap - Temperature Data
+```{r seasonal_heatmap_temperature}
+# Create synthetic temperature data
+set.seed(42)
+temp_data <- expand.grid(
+  month = 1:12,
+  year = 2015:2024
+) |>
+  mutate(
+    date = as.Date(paste(year, month, "01", sep = "-")),
+    temperature = 15 +
+      10 * sin(2 * pi * (month - 3) / 12) +
+      rnorm(n(), 0, 2),
+    month_name = month.name[month]
+  )
+
+hchart(
+  temp_data,
+  "heatmap",
+  hcaes(x = year, y = month_name, value = temperature)
+) |>
+  hc_colorAxis(
+    stops = color_stops(colors = c("#3060cf", "#fffbbc", "#c4463a")),
+    min = 0,
+    max = 30
+  ) |>
+  hc_title(text = "Monthly Temperature Heatmap (2015-2024)") |>
+  hc_xAxis(title = list(text = "Year")) |>
+  hc_yAxis(title = list(text = "Month"), reversed = TRUE)
+```
+
+### 29. Smoothed Time Series with Confidence Bands
+```{r smoothed_ts_confidence}
+# Create time series with trend and noise
+set.seed(123)
+dates <- seq(as.Date("2020-01-01"), as.Date("2024-12-31"), by = "week")
+trend <- 100 + 0.5 * seq_along(dates) + 20 * sin(2 * pi * seq_along(dates) / 52)
+noise <- rnorm(length(dates), 0, 5)
+values <- trend + noise
+
+# Calculate moving average and confidence bands
+
+ma <- rollmean(values, k = 4, fill = NA, align = "center")
+upper_band <- ma +
+  1.96 * rollapply(values, width = 4, FUN = sd, fill = NA, align = "center")
+lower_band <- ma -
+  1.96 * rollapply(values, width = 4, FUN = sd, fill = NA, align = "center")
+
+ts_data <- data.frame(
+  date = dates,
+  observed = values,
+  smoothed = ma,
+  upper = upper_band,
+  lower = lower_band
+)
+
+highchart() |>
+  hc_add_series(
+    ts_data,
+    "line",
+    hcaes(x = date, y = observed),
+    name = "Observed",
+    color = "#cccccc",
+    lineWidth = 1
+  ) |>
+  hc_add_series(
+    ts_data,
+    "arearange",
+    hcaes(x = date, low = lower, high = upper),
+    name = "Confidence Band",
+    color = "#3498db",
+    fillOpacity = 0.3
+  ) |>
+  hc_add_series(
+    ts_data,
+    "line",
+    hcaes(x = date, y = smoothed),
+    name = "Smoothed Trend",
+    color = "#e74c3c",
+    lineWidth = 2
+  ) |>
+  hc_title(text = "Time Series with Smoothed Trend and Confidence Bands") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Value"))
+```
+
+### 30. Multiple Stock Comparison with Volume
+```{r multiple_stock_comparison}
+# Get multiple stocks (if quantmod is available)
+stocks <- c("AAPL", "MSFT", "GOOGL")
+stock_data <- lapply(stocks, function(symbol) {
+  tryCatch(
+    {
+      getSymbols(symbol, auto.assign = FALSE, from = "2023-01-01")
+    },
+    error = function(e) NULL
+  )
+})
+
+if (
+  !is.null(stock_data[[1]]) &&
+    !is.null(stock_data[[2]]) &&
+    !is.null(stock_data[[3]])
+) {
+  # Create comparison chart
+  highchart(type = "stock") |>
+    hc_add_series(stock_data[[1]][, 6], name = "AAPL") |>
+    hc_add_series(stock_data[[2]][, 6], name = "MSFT") |>
+    hc_add_series(stock_data[[3]][, 6], name = "GOOGL") |>
+    hc_title(text = "Stock Price Comparison") |>
+    hc_rangeSelector(enabled = TRUE)
+}
+```
+
+### 31. Irregular Time Series - Event Data
+```{r irregular_ts_events}
+# Create irregular time series (events happening at random intervals)
+set.seed(456)
+event_dates <- sort(sample(
+  seq(as.Date("2023-01-01"), as.Date("2024-12-31"), by = "day"),
+  50
+))
+event_values <- cumsum(rnorm(50, 2, 5))
+
+irregular_data <- data.frame(
+  date = event_dates,
+  value = event_values,
+  event_type = sample(c("Type A", "Type B", "Type C"), 50, replace = TRUE)
+)
+
+hchart(
+  irregular_data,
+  "line",
+  hcaes(x = date, y = value, group = event_type)
+) |>
+  hc_plotOptions(
+    line = list(
+      marker = list(enabled = TRUE, radius = 4),
+      lineWidth = 2
+    )
+  ) |>
+  hc_title(text = "Irregular Time Series - Event Data") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Cumulative Value"))
+```
+
+### 32. Time Series with Annotations and Flags
+```{r ts_annotations_flags}
+# Create time series with significant events
+set.seed(789)
+ts_dates <- seq(as.Date("2020-01-01"), as.Date("2024-01-01"), by = "month")
+ts_values <- 100 * cumprod(1 + rnorm(length(ts_dates), 0.005, 0.05))
+
+# Define significant events
+events <- data.frame(
+  date = as.Date(c("2020-03-15", "2021-06-01", "2022-12-01", "2023-09-15")),
+  event = c(
+    "Market Crash",
+    "Recovery Begins",
+    "Policy Change",
+    "New Regulation"
+  ),
+  impact = c("negative", "positive", "neutral", "positive")
+)
+
+# Create the main series
+ts_chart <- highchart() |>
+  hc_add_series(
+    data = data.frame(date = ts_dates, value = ts_values),
+    type = "line",
+    hcaes(x = date, y = value),
+    name = "Index Value",
+    color = "#2c3e50"
+  )
+
+# Add event flags
+for (i in 1:nrow(events)) {
+  flag_color <- switch(events$impact[i],
+    "positive" = "#27ae60",
+    "negative" = "#e74c3c",
+    "neutral" = "#f39c12"
+  )
+
+  ts_chart <- ts_chart |>
+    hc_add_series(
+      data = list(list(
+        x = as.numeric(events$date[i]) * 86400000,
+        title = substr(events$event[i], 1, 1)
+      )),
+      type = "flags",
+      name = events$event[i],
+      color = flag_color,
+      fillColor = flag_color,
+      style = list(color = "white")
+    )
+}
+
+ts_chart |>
+  hc_title(text = "Time Series with Event Annotations") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Index Value"))
+```
+
+### 33. Seasonal Subseries Plot
+```{r seasonal_subseries}
+# Create seasonal data
+seasonal_data <- data.frame(
+  date = seq(as.Date("2020-01-01"), as.Date("2023-12-31"), by = "month"),
+  sales = 1000 + 500 * sin(2 * pi * (1:48) / 12) + rnorm(48, 0, 100)
+) |>
+  mutate(
+    year = year(date),
+    month = month(date),
+    month_name = month.name[month]
+  )
+
+# Create subseries by month
+hchart(seasonal_data, "line", hcaes(x = year, y = sales, group = month_name)) |>
+  hc_title(text = "Seasonal Subseries Plot - Monthly Sales by Year") |>
+  hc_xAxis(title = list(text = "Year")) |>
+  hc_yAxis(title = list(text = "Sales")) |>
+  hc_plotOptions(
+    line = list(
+      marker = list(enabled = TRUE)
+    )
+  )
+```
+
+### 34. Time Series Comparison - Before/After Analysis
+```{r before_after_analysis}
+# Create before/after intervention data
+set.seed(101)
+dates <- seq(as.Date("2022-01-01"), as.Date("2024-12-31"), by = "week")
+intervention_date <- as.Date("2023-06-01")
+
+# Different patterns before and after intervention
+before_after <- ifelse(dates < intervention_date, "Before", "After")
+base_trend <- ifelse(dates < intervention_date, 50, 65)
+seasonal_effect <- 10 * sin(2 * pi * as.numeric(dates - min(dates)) / 365.25)
+noise <- rnorm(length(dates), 0, 5)
+
+values <- base_trend + seasonal_effect + noise
+
+comparison_data <- data.frame(
+  date = dates,
+  value = values,
+  period = before_after
+)
+
+hchart(comparison_data, "line", hcaes(x = date, y = value, group = period)) |>
+  hc_plotOptions(
+    line = list(
+      lineWidth = 2,
+      marker = list(enabled = FALSE)
+    )
+  ) |>
+  hc_xAxis(
+    title = list(text = "Date"),
+    plotLines = list(
+      list(
+        color = "#e74c3c",
+        dashStyle = "Dash",
+        value = as.numeric(intervention_date) * 86400000,
+        width = 2,
+        label = list(text = "Intervention", style = list(color = "#e74c3c"))
+      )
+    )
+  ) |>
+  hc_yAxis(title = list(text = "Metric Value")) |>
+  hc_title(text = "Before/After Intervention Analysis")
+```
+
+### 35. Multi-frequency Time Series
+```{r multi_frequency_ts}
+# Combine daily, weekly, and monthly data
+daily_dates <- seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "day")
+weekly_dates <- seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "week")
+monthly_dates <- seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "month")
+
+multi_freq_data <- list(
+  daily = data.frame(
+    date = daily_dates,
+    value = 100 + cumsum(rnorm(length(daily_dates), 0, 1)),
+    frequency = "Daily"
+  ),
+  weekly = data.frame(
+    date = weekly_dates,
+    value = 100 + cumsum(rnorm(length(weekly_dates), 0, 2)),
+    frequency = "Weekly"
+  ),
+  monthly = data.frame(
+    date = monthly_dates,
+    value = 100 + cumsum(rnorm(length(monthly_dates), 0, 5)),
+    frequency = "Monthly"
+  )
+) |>
+  bind_rows()
+
+hchart(
+  multi_freq_data,
+  "line",
+  hcaes(x = date, y = value, group = frequency)
+) |>
+  hc_plotOptions(
+    line = list(
+      lineWidth = 2
+    )
+  ) |>
+  hc_colors(c("#3498db", "#e74c3c", "#2ecc71")) |>
+  hc_title(text = "Multi-frequency Time Series Comparison") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Value"))
+```
+
+### 36. Regime Change Detection
+```{r regime_change_detection}
+# Simulate regime changes in time series
+set.seed(202)
+n_points <- 200
+dates <- seq(as.Date("2020-01-01"), length.out = n_points, by = "week")
+
+# Create different regimes
+regime1 <- rnorm(60, 10, 2) # Low volatility, mean 10
+regime2 <- rnorm(80, 15, 5) # High volatility, mean 15
+regime3 <- rnorm(60, 8, 1.5) # Low volatility, mean 8
+
+values <- c(regime1, regime2, regime3)
+regimes <- c(rep("Regime 1", 60), rep("Regime 2", 80), rep("Regime 3", 60))
+
+regime_data <- data.frame(
+  date = dates,
+  value = values,
+  regime = regimes
+)
+
+hchart(regime_data, "line", hcaes(x = date, y = value, group = regime)) |>
+  hc_plotOptions(
+    line = list(
+      lineWidth = 2,
+      marker = list(enabled = FALSE)
+    )
+  ) |>
+  hc_title(text = "Time Series with Regime Changes") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Value"))
+```
+
+### 37. Time Series Correlation Matrix
+```{r ts_correlation_matrix}
+# Create multiple correlated time series
+set.seed(303)
+n_series <- 5
+n_points <- 100
+dates <- seq(as.Date("2023-01-01"), length.out = n_points, by = "day")
+
+# Generate correlated series
+base_series <- cumsum(rnorm(n_points, 0, 1))
+corr_matrix <- matrix(
+  c(
+    1,
+    0.8,
+    0.6,
+    0.3,
+    -0.2,
+    0.8,
+    1,
+    0.7,
+    0.4,
+    -0.1,
+    0.6,
+    0.7,
+    1,
+    0.5,
+    0.1,
+    0.3,
+    0.4,
+    0.5,
+    1,
+    0.3,
+    -0.2,
+    -0.1,
+    0.1,
+    0.3,
+    1
+  ),
+  nrow = 5
+)
+
+# Generate correlated data
+series_data <- MASS::mvrnorm(n_points, mu = rep(0, 5), Sigma = corr_matrix)
+colnames(series_data) <- paste("Series", LETTERS[1:5])
+
+# Convert to long format for plotting
+
+ts_long <- as.data.frame(series_data) |>
+  mutate(date = dates) |>
+  pivot_longer(cols = -date, names_to = "series", values_to = "value")
+
+hchart(ts_long, "line", hcaes(x = date, y = value, group = series)) |>
+  hc_plotOptions(
+    line = list(
+      lineWidth = 2,
+      marker = list(enabled = FALSE)
+    )
+  ) |>
+  hc_title(text = "Multiple Correlated Time Series") |>
+  hc_xAxis(title = list(text = "Date")) |>
+  hc_yAxis(title = list(text = "Value"))
+```
