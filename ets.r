@@ -9,8 +9,13 @@ Coffee_Prices |>
 
 # %%
 ts_info(Coffee_Prices)
+
 # %%
-robusta <- Coffee_Prices[, 1]
+# Extract robusta
+robusta <- Coffee_Prices |>
+  select(1) |>
+  pull()
+
 # %%
 ts_plot(
   robusta,
@@ -18,8 +23,8 @@ ts_plot(
   Ytitle = "Price in USD",
   Xtitle = "Year"
 )
-# %%
 
+# %%
 sma_forecast <- function(df, h, m, w = NULL) {
   # Error handling
   if (h > nrow(df)) {
@@ -33,6 +38,7 @@ sma_forecast <- function(df, h, m, w = NULL) {
       "The length of the rolling window must be shorter than the length of the series"
     )
   }
+
   if (!is.null(w)) {
     if (length(w) != m) {
       stop(
@@ -43,87 +49,105 @@ sma_forecast <- function(df, h, m, w = NULL) {
     }
   }
 
-  # Setting the average weigths
+  # Setting the average weights
   if (is.null(w)) {
     w <- rep(1 / m, m)
   }
 
   # Setting the data frame
-  #-----------------------
-  # Changing the Date object column name
-  names(df)[1] <- "date"
-  # Setting the training and testing partition
-  # according to the forecast horizon
-  df$type <- c(rep("train", nrow(df) - h), rep("test", h))
+  df_processed <- df |>
+    # Rename first column to 'date'
+    rename(date = 1) |>
+    # Add type column based on position
+    mutate(
+      row_num = row_number(),
+      type = case_when(
+        row_num <= (nrow(df) - h) ~ "train",
+        TRUE ~ "test"
+      )
+    ) |>
+    select(-row_num) |>
+    # Pivot wider by type
+    pivot_wider(names_from = type, values_from = y) |>
+    # Initialize yhat with train values
+    mutate(yhat = train)
 
-  # Spreading the table by the partition type
-  df1 <- df %>% spread(key = type, value = y)
-
-  # Create the target variable
-  df1$yhat <- df1$train
-
-  # Simple moving average function
-  for (i in (nrow(df1) - h + 1):nrow(df1)) {
+  # Simple moving average calculation
+  for (i in (nrow(df_processed) - h + 1):nrow(df_processed)) {
     r <- (i - m):(i - 1)
-    df1$yhat[i] <- sum(df1$yhat[r] * w)
+    df_processed$yhat[i] <- sum(df_processed$yhat[r] * w)
   }
 
-  # dropping from the yhat variable the actual values
-  # that were used for the rolling window
-  df1$yhat <- ifelse(is.na(df1$test), NA, df1$yhat)
+  # Clean up the output
+  df_final <- df_processed |>
+    mutate(
+      # Set yhat to NA where test is NA (training period)
+      yhat = if_else(is.na(test), NA_real_, yhat),
+      # Create unified y column
+      y = if_else(is.na(test), train, test)
+    )
 
-  df1$y <- ifelse(is.na(df1$test), df1$train, df1$test)
-
-  return(df1)
+  return(df_final)
 }
+
 # %%
 robusta_df <- ts_to_prophet(robusta)
-robusta_fc_m1 <- sma_forecast(robusta_df, h = 24, m = 1)
-robusta_fc_m6 <- sma_forecast(robusta_df, h = 24, m = 6)
-robusta_fc_m12 <- sma_forecast(robusta_df, h = 24, m = 12)
-robusta_fc_m24 <- sma_forecast(robusta_df, h = 24, m = 24)
-robusta_fc_m36 <- sma_forecast(robusta_df, h = 24, m = 36)
+
+# Generate forecasts with different moving average windows
+robusta_forecasts <- list(
+  m1 = sma_forecast(robusta_df, h = 24, m = 1),
+  m6 = sma_forecast(robusta_df, h = 24, m = 6),
+  m12 = sma_forecast(robusta_df, h = 24, m = 12),
+  m24 = sma_forecast(robusta_df, h = 24, m = 24),
+  m36 = sma_forecast(robusta_df, h = 24, m = 36)
+)
+
 # %%
 robusta_df
+
 # %%
+
+plot_data <- robusta_df |>
+  slice_tail(n = nrow(robusta_df) - 649)
+
 plot_ly(
-  data = robusta_df[650:nrow(robusta_df), ],
+  data = plot_data,
   x = ~ds,
   y = ~y,
   type = "scatter",
   mode = "lines",
   name = "Actual"
-) %>%
+) |>
   add_lines(
-    x = robusta_fc_m1$date,
-    y = robusta_fc_m1$yhat,
+    x = robusta_forecasts$m1$date,
+    y = robusta_forecasts$m1$yhat,
     name = "SMA - 1",
     line = list(dash = "dash")
-  ) %>%
+  ) |>
   add_lines(
-    x = robusta_fc_m6$date,
-    y = robusta_fc_m6$yhat,
+    x = robusta_forecasts$m6$date,
+    y = robusta_forecasts$m6$yhat,
     name = "SMA - 6",
     line = list(dash = "dash")
-  ) %>%
+  ) |>
   add_lines(
-    x = robusta_fc_m12$date,
-    y = robusta_fc_m12$yhat,
+    x = robusta_forecasts$m12$date,
+    y = robusta_forecasts$m12$yhat,
     name = "SMA - 12",
     line = list(dash = "dash")
-  ) %>%
+  ) |>
   add_lines(
-    x = robusta_fc_m24$date,
-    y = robusta_fc_m24$yhat,
+    x = robusta_forecasts$m24$date,
+    y = robusta_forecasts$m24$yhat,
     name = "SMA - 24",
     line = list(dash = "dash")
-  ) %>%
+  ) |>
   add_lines(
-    x = robusta_fc_m36$date,
-    y = robusta_fc_m36$yhat,
+    x = robusta_forecasts$m36$date,
+    y = robusta_forecasts$m36$yhat,
     name = "SMA - 36",
     line = list(dash = "dash")
-  ) %>%
+  ) |>
   layout(
     title = "Forecasting the Robusta Coffee Monthly Prices",
     xaxis = list(title = ""),
@@ -133,6 +157,5 @@ plot_ly(
 # Weighted Moving Average
 # Used when the series have a high correlation with its lags
 # %%
-
 data(USgas)
 USgas_df <- ts_to_prophet(USgas)
