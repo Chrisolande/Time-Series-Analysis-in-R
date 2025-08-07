@@ -134,12 +134,12 @@ data %>%
 
 # %%
 monthly_data <- data %>%
-  convert_date_ts(unit = "month")
+  convert_date_ts(unit = "month") %>%
+  mutate(date = yearmonth(date)) %>%
+  select(date, everything()) %>%
+  as_tsibble(index = date) %>%
+  fill_gaps()
 
-monthly_ts <- ts(monthly_data$close, frequency = 12, start = c(2015, 11))
-ts_info(monthly_ts)
-
-# %%
 
 seasonal_plot_theme <- function() {
   theme_tq() +
@@ -157,13 +157,12 @@ seasonal_plot_theme <- function() {
     )
 }
 
-years <- unique(floor(time(monthly_ts)))
+years <- unique(lubridate::year(monthly_data$date))
 palette <- palette_light()[1:length(years)]
 names(palette) <- as.character(years)
 
-# Plot
-ggseasonplot(monthly_ts) +
-  scale_color_manual(values = palette) +
+monthly_data %>%
+  gg_season(close, labels = "right") +
   scale_y_continuous(
     labels = scales::dollar_format(),
     breaks = scales::pretty_breaks(n = 5)
@@ -177,18 +176,28 @@ ggseasonplot(monthly_ts) +
   seasonal_plot_theme()
 
 # %%
-ggsubseriesplot(monthly_ts) +
+gg_subseries(monthly_data, close) +
   scale_y_continuous(
     labels = scales::dollar_format(),
     breaks = scales::pretty_breaks(n = 5)
+  ) +
+  scale_x_yearmonth(
+    date_breaks = "3 years",
+    date_labels = "'%y"
   ) +
   labs(
     title = "Monthly Subseries Plot",
     subtitle = "Each facet shows the distribution of values across years for each month",
     caption = "Source: Yahoo Stock Prices",
-    y = "Close ($)"
+    y = "Close ($)",
+    x = "Year"
   ) +
-  seasonal_plot_theme()
+  seasonal_plot_theme() +
+  theme(
+    axis.text.x = element_text(size = 9),
+    strip.text = element_text(size = 10, face = "bold")
+  )
+
 
 # %%
 correlation_plot_theme <- function() {
@@ -199,7 +208,7 @@ correlation_plot_theme <- function() {
     )
 }
 
-ggAcf(monthly_ts, lag.max = 36) +
+ggAcf(monthly_data, lag.max = 36) +
   labs(
     title = "Autocorrelation Plot (ACF)",
     subtitle = "Shows the correlation of the time series with its own lags up to 36 months",
@@ -210,23 +219,56 @@ ggAcf(monthly_ts, lag.max = 36) +
 # The series appears to have trend, the lags are tailing off
 
 # %%
-monthly_diff <- diff(monthly_ts)
-# ts_info(monthly_diff)
-ggAcf(monthly_diff, lag.max = 36) +
-  correlation_plot_theme()
-
-ggPacf(monthly_diff, lag.max = 36) +
-  correlation_plot_theme()
-
-# After differencing, it suggests an ARIMA (0, 1, 0)
-
-# %%
-decomp <- stl(monthly_ts, s.window = "periodic")
+decomp <- stl(monthly_data, s.window = "periodic")
 autoplot(decomp) +
   labs(
     title = "STL Decomposition",
     subtitle = "Trend + Seasonal + Remainder"
   ) +
   theme_minimal()
+# %%
+monthly_data %>%
+  mutate(diff_log_close = difference(log(close))) %>%
+  ACF(diff_log_close, lag_max = 36) %>%
+  autoplot() +
+  labs(
+    title = "ACF Plot - Log Differenced Series",
+    subtitle = "Autocorrelation after log-differencing monthly closing prices",
+    caption = "Source: Yahoo Stock Prices"
+  ) +
+  correlation_plot_theme()
+
+monthly_data %>%
+  mutate(diff_log_close = difference(log(close))) %>%
+  PACF(diff_log_close, lag_max = 36) %>%
+  autoplot() +
+  labs(
+    title = "PACF Plot - Log Differenced Series",
+    subtitle = "Partial autocorrelation after log-differencing monthly closing prices",
+    caption = "Source: Yahoo Stock Prices"
+  ) +
+  correlation_plot_theme()
+
+# After log-differencing, it suggests an ARIMA (0, 1, 0)
+
+# %%
+monthly_data %>%
+  mutate(diff_log_close = difference(log(close))) %>%
+  gg_lag(diff_log_close, lags = c(1, 12, 24, 36), geom = "point") +
+  labs(
+    title = "Lag Plot - Log Differenced Series",
+    subtitle = "Check for remaining patterns after differencing",
+    caption = "Source: Yahoo Stock Prices"
+  ) +
+  theme_calc()
+
+# Inference:
+
+# Stationary, after log-differencing
+
+# Free of significant seasonality
+
+# Suitable for a simple ARIMA(0,1,0) model (random walk)
+# %%
 
 # %%
