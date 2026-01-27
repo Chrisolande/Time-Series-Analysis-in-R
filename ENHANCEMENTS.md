@@ -38,7 +38,8 @@ This document describes the comprehensive enhancements made to the `yahoo_prices
 | learn_rate | 0.05 | 0.01 | 80% lower for better convergence |
 | min_n | - | 5 | New: prevents overfitting |
 | early_stopping | - | 50 rounds | New: automatic stopping |
-| validation | - | 0.2 (20%) | New: holdout validation |
+
+**Note**: These hyperparameter improvements are based on time series forecasting best practices. The racing ANOVA cross-validation process validates these choices against the specific dataset to ensure they provide actual accuracy improvements rather than just theoretical benefits. Optimal hyperparameters are dataset-dependent and are refined through the tuning process.
 
 ### 3. Hyperparameter Tuning Improvements
 

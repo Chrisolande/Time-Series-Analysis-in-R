@@ -585,8 +585,7 @@ boost_tree_xgboost_spec <- boost_tree(
   min_n = 5  # Added regularization
 ) %>%
   set_engine("xgboost", 
-             early_stopping_rounds = 50,  # Prevent overfitting
-             validation = 0.2) %>%  # Use 20% for validation
+             early_stopping_rounds = 50) %>%  # Prevent overfitting
   set_mode("regression")
 
 xgboost_wflow <- workflow() %>%
@@ -729,11 +728,10 @@ df <- data %>%
   # Remove duplicates to improve data quality
   distinct(date, .keep_all = TRUE)
 
-# Calculate MACD once and extract columns (more efficient)
+# Calculate technical indicators once for efficiency
+# These are computed once and then columns extracted to avoid redundant calculations
 macd_result <- MACD(df$close, nFast = 12, nSlow = 26, nSig = 9)
-# Calculate BBands once and extract columns (more efficient)
 bbands_result <- BBands(df$close, n = 20, sd = 2)
-# Calculate ATR once
 atr_result <- ATR(df[, c("high", "low", "close")], n = 14)
 
 df <- df %>%
@@ -762,9 +760,9 @@ df <- df %>%
     # Volatility measures
     close_std_10 = runSD(close, n = 10),
     close_std_20 = runSD(close, n = 20),
-    # Price range features
-    high_low_ratio = high / low,
-    close_open_ratio = close / open
+    # Price range features (with protection against division by zero)
+    high_low_ratio = ifelse(low > 0, high / low, NA_real_),
+    close_open_ratio = ifelse(open > 0, close / open, NA_real_)
   ) %>%
   drop_na()
 
