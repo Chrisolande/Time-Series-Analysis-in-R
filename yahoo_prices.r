@@ -48,7 +48,9 @@ librarian::shelf(
   tidyquant,
   gridExtra,
   TSstudio,
-  highcharter
+  highcharter,
+  finetune,  # For hyperparameter tuning with racing ANOVA
+  knitr      # For kable() table formatting
 )
 
 # ------------------------------------------------------------------------------
@@ -725,7 +727,16 @@ df <- data %>%
   rename(high = 2, low = 3, open = 4, close = 5, volume = 6) %>%
   mutate(date = as.Date(date)) %>%
   # Remove duplicates to improve data quality
-  distinct(date, .keep_all = TRUE) %>%
+  distinct(date, .keep_all = TRUE)
+
+# Calculate MACD once and extract columns (more efficient)
+macd_result <- MACD(df$close, nFast = 12, nSlow = 26, nSig = 9)
+# Calculate BBands once and extract columns (more efficient)
+bbands_result <- BBands(df$close, n = 20, sd = 2)
+# Calculate ATR once
+atr_result <- ATR(df[, c("high", "low", "close")], n = 14)
+
+df <- df %>%
   mutate(
     # Existing technical indicators
     SMA_10 = SMA(close, n = 10),
@@ -735,13 +746,13 @@ df <- data %>%
     EMA_20 = EMA(close, n = 20),
     EMA_50 = EMA(close, n = 50),
     RSI_14 = RSI(close, n = 14),
-    MACD = MACD(close, nFast = 12, nSlow = 26, nSig = 9)[, "macd"],
-    MACD_sig = MACD(close, nFast = 12, nSlow = 26, nSig = 9)[, "signal"],
-    ATR_14 = ATR(select(cur_data(), high, low, close), n = 14)[, "atr"],
+    MACD = macd_result[, "macd"],
+    MACD_sig = macd_result[, "signal"],
+    ATR_14 = atr_result[, "atr"],
     # Enhanced technical indicators for better accuracy
-    BBands_upper = BBands(close, n = 20, sd = 2)[, "up"],
-    BBands_lower = BBands(close, n = 20, sd = 2)[, "dn"],
-    BBands_pctB = BBands(close, n = 20, sd = 2)[, "pctB"],
+    BBands_upper = bbands_result[, "up"],
+    BBands_lower = bbands_result[, "dn"],
+    BBands_pctB = bbands_result[, "pctB"],
     # Volume indicators
     volume_sma_10 = SMA(volume, n = 10),
     volume_sma_20 = SMA(volume, n = 20),
@@ -788,7 +799,7 @@ wflows <- workflow_set(
 # Custom ranges could be specified via param_info if needed for specific models
 
 # %%
-library(finetune)
+# Control settings for hyperparameter tuning with racing ANOVA
 ctrl_race <- control_race(
   save_pred = TRUE,
   save_workflow = TRUE,
