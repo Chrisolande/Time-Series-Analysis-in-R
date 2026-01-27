@@ -15,7 +15,17 @@ This repository contains a collection of R scripts demonstrating various time se
 - `seasonality_analysis.r`: This script focuses on exploring seasonality in time series data. It uses the `USgas` and `UKgrid` datasets to demonstrate various seasonality analysis techniques.
 - `Time-Series Decomposition.R`: This script demonstrates how to decompose a time series into its trend, seasonal, and random components. It uses the `USVSales` and `USUnRate` datasets from the `TSstudio` package.
 - `working_with_zoo_xts.r`: This script provides examples of working with `zoo` and `xts` time series objects in R.
-- `yahoo_prices.r`: This script loads and visualizes Yahoo stock price data from a CSV file. It creates candlestick charts and performs seasonality analysis.
+- `yahoo_prices.r`: **[ENHANCED]** This script performs comprehensive time series analysis and forecasting on Yahoo stock price data. Features include advanced technical indicators, multiple model types (ARIMA, ETS, NNETAR, XGBoost, Random Forest, Prophet), hyperparameter tuning with racing ANOVA, and accuracy optimization. See [ENHANCEMENTS.md](ENHANCEMENTS.md) for detailed improvements.
+
+## Recent Enhancements
+
+The `yahoo_prices.r` script has been significantly enhanced to achieve better forecasting accuracy:
+- **15+ new features** including technical indicators (Bollinger Bands, ROC, additional SMAs/EMAs), volume analysis, volatility measures, and feature interactions
+- **Optimized model hyperparameters** with 2x more trees, deeper depth, better learning rates, and early stopping
+- **Improved hyperparameter tuning** with 2x larger grid search and better cross-validation strategy
+- **Enhanced evaluation** with comprehensive accuracy metrics and automated best model selection
+
+See [ENHANCEMENTS.md](ENHANCEMENTS.md) for complete details.
 
 ## Data
 
@@ -64,6 +74,7 @@ To run these scripts, you will need to have R and the following packages install
 - `UKgrid`
 - `skimr`
 - `librarian`
+- `dials` (for enhanced yahoo_prices.r hyperparameter tuning)
 
 You can install these packages using the `pak` package manager, which is generally faster and better at resolving dependencies. First, install `pak` if you don't have it:
 
