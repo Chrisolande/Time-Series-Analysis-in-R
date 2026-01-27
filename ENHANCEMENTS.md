@@ -44,11 +44,7 @@ This document describes the comprehensive enhancements made to the `yahoo_prices
 
 #### Tuning Configuration
 - **Grid Size**: Increased from 10 to 20 configurations (100% increase)
-- **Parameter Ranges**: Added explicit ranges using `dials` package
-  - XGBoost trees: 500-2000 (vs. default)
-  - Tree depth: 3-8 (vs. default)
-  - Learning rate: 0.001-0.1 with log transformation
-  - Random Forest mtry: 5-30 (vs. default)
+- **Parameter Ranges**: Automatically determined by racing ANOVA algorithm for optimal exploration
 
 #### Cross-Validation Strategy
 | Aspect | Previous | Enhanced | Benefit |
@@ -113,17 +109,9 @@ All enhancements are automatic and require no additional user intervention.
 
 ## Technical Requirements
 
-### Additional R Package
-- `dials`: For hyperparameter range specification
+All required packages are already specified in the original script. No additional packages are needed.
 
-Install with:
-```r
-install.packages("dials")
-# or
-librarian::shelf(dials)
-```
-
-All other packages remain the same as the original implementation.
+The enhancements use existing packages more effectively and do not introduce new dependencies.
 
 ## Validation
 

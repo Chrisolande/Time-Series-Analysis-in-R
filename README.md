@@ -74,7 +74,6 @@ To run these scripts, you will need to have R and the following packages install
 - `UKgrid`
 - `skimr`
 - `librarian`
-- `dials` (for enhanced yahoo_prices.r hyperparameter tuning)
 
 You can install these packages using the `pak` package manager, which is generally faster and better at resolving dependencies. First, install `pak` if you don't have it:
 

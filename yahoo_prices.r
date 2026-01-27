@@ -48,8 +48,7 @@ librarian::shelf(
   tidyquant,
   gridExtra,
   TSstudio,
-  highcharter,
-  dials  # For hyperparameter tuning ranges
+  highcharter
 )
 
 # ------------------------------------------------------------------------------
@@ -533,17 +532,38 @@ yahoo_recipe <- recipe(close ~ date, data = training(splits)) %>%
   # Multiple rolling window statistics for richer features
   step_slidify(
     all_of("close"),
-    period = c(3, 7, 14),
+    period = 3,
     .f = ~ mean(.x, na.rm = TRUE),
     align = "right",
-    names = c("close_ma_3", "close_ma_7", "close_ma_14")
+    names = "close_ma_3"
   ) %>%
   step_slidify(
     all_of("close"),
-    period = c(7, 14),
+    period = 7,
+    .f = ~ mean(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_ma_7"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 14,
+    .f = ~ mean(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_ma_14"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 7,
     .f = ~ sd(.x, na.rm = TRUE),
     align = "right",
-    names = c("close_sd_7", "close_sd_14")
+    names = "close_sd_7"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 14,
+    .f = ~ sd(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_sd_14"
   ) %>%
   step_naomit(all_predictors()) %>%
   step_normalize(
@@ -764,20 +784,8 @@ wflows <- workflow_set(
   )
 )
 
-# %%
-# Define better parameter ranges for tuning
-library(dials)
-xgb_params <- parameters(
-  trees(range = c(500, 2000)),
-  tree_depth(range = c(3, 8)),
-  learn_rate(range = c(0.001, 0.1), trans = scales::log_trans()),
-  min_n(range = c(2, 10))
-)
-
-rf_params <- parameters(
-  mtry(range = c(5, 30)),
-  min_n(range = c(2, 10))
-)
+# Note: Parameter ranges are automatically determined by the racing ANOVA algorithm
+# Custom ranges could be specified via param_info if needed for specific models
 
 # %%
 library(finetune)
