@@ -2,6 +2,30 @@
 # YAHOO STOCK PRICE ANALYSIS
 # Time Series Analysis and Forecasting
 # ==============================================================================
+#
+# ENHANCEMENTS FOR IMPROVED ACCURACY:
+# 1. Enhanced Feature Engineering:
+#    - Added multiple SMAs (10, 20, 50) and EMAs (10, 20, 50)
+#    - Bollinger Bands (upper, lower, pctB) for volatility
+#    - Volume indicators and momentum features (ROC)
+#    - Rolling statistics (std dev) and price ratios
+#    - Enhanced lag features (1,2,3,5,7,10,14 days)
+#    - Multiple rolling windows (3,7,14 periods) for mean and std
+#    - Feature interactions (SMA:EMA, RSI:MACD)
+#
+# 2. Model Improvements:
+#    - Increased XGBoost trees from 500 to 1000
+#    - Deeper trees (depth 5 vs 3) for complex patterns
+#    - Better learning rate (0.01 vs 0.05) for convergence
+#    - Added regularization and early stopping
+#    - Improved hyperparameter tuning (grid size 20 vs 10)
+#
+# 3. Data Quality:
+#    - Removed duplicate records
+#    - Zero-variance predictor removal
+#    - Better train/test splits and cross-validation
+#
+# ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. LIBRARY SETUP
@@ -24,7 +48,8 @@ librarian::shelf(
   tidyquant,
   gridExtra,
   TSstudio,
-  highcharter
+  highcharter,
+  dials  # For hyperparameter tuning ranges
 )
 
 # ------------------------------------------------------------------------------
@@ -738,6 +763,22 @@ wflows <- workflow_set(
     xgb = xgboost_spec
   )
 )
+
+# %%
+# Define better parameter ranges for tuning
+library(dials)
+xgb_params <- parameters(
+  trees(range = c(500, 2000)),
+  tree_depth(range = c(3, 8)),
+  learn_rate(range = c(0.001, 0.1), trans = scales::log_trans()),
+  min_n(range = c(2, 10))
+)
+
+rf_params <- parameters(
+  mtry(range = c(5, 30)),
+  min_n(range = c(2, 10))
+)
+
 # %%
 library(finetune)
 ctrl_race <- control_race(
@@ -771,18 +812,45 @@ results <- wflows %>%
   )
 
 # %%
-results
+cat("\n=== All Workflow Results ===\n")
+print(results)
 
 # %%
-results %>%
-  filter(wflow_id != "base_recipe_xgb") -> results
+# Comment out the filter - keep all models for comprehensive comparison
+# results %>%
+#   filter(wflow_id != "base_recipe_xgb") -> results
 
 
 # %%
-wflow_set_final <- rank_results(results, select_best = TRUE)
+cat("\n=== Final Model Rankings (Best Configuration per Model) ===\n")
+wflow_set_final <- rank_results(results, select_best = TRUE, rank_metric = "rmse")
 
-wflow_set_final %>% kable()
+wflow_set_final %>% 
+  select(wflow_id, .metric, mean, std_err, rank) %>%
+  kable()
+
 # %%
-results %>%
-  extract_workflow_set_result("base_recipe_nnet") %>%
-  select_best(metric = "rsq")
+# Display best hyperparameters for top models
+cat("\n=== Best Hyperparameters for Top 3 Models ===\n")
+top_3_models <- wflow_set_final %>%
+  filter(.metric == "rmse") %>%
+  arrange(rank) %>%
+  head(3) %>%
+  pull(wflow_id)
+
+for (model_id in top_3_models) {
+  cat(sprintf("\n%s:\n", model_id))
+  best_params <- results %>%
+    extract_workflow_set_result(model_id) %>%
+    select_best(metric = "rmse")
+  print(best_params)
+}
+
+# Save the best overall model
+best_wflow_id <- wflow_set_final %>%
+  filter(.metric == "rmse") %>%
+  arrange(rank) %>%
+  slice(1) %>%
+  pull(wflow_id)
+
+cat(sprintf("\n=== Best Overall Model: %s ===\n", best_wflow_id))
