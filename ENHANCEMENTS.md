@@ -23,7 +23,7 @@ This document describes the comprehensive enhancements made to the `yahoo_prices
 
 #### Enhanced Time Series Features
 - **Extended Lag Features**: Increased from 3 lags (1,3,6) to 7 lags (1,2,3,5,7,10,14 days)
-- **Multiple Rolling Windows**: 
+- **Multiple Rolling Windows**:
   - Mean: 3, 7, 14-day windows (vs. single 3-day previously)
   - Standard Deviation: 7, 14-day windows (new)
 - **Feature Interactions**: Added SMA_10:EMA_10 and RSI_14:MACD interaction terms

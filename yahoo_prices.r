@@ -49,8 +49,8 @@ librarian::shelf(
   gridExtra,
   TSstudio,
   highcharter,
-  finetune,  # For hyperparameter tuning with racing ANOVA
-  knitr      # For kable() table formatting
+  finetune, # For hyperparameter tuning with racing ANOVA
+  knitr # For kable() table formatting
 )
 
 # ------------------------------------------------------------------------------
@@ -579,13 +579,14 @@ yahoo_recipe <- recipe(close ~ date, data = training(splits)) %>%
 # %%
 # Improved XGBoost hyperparameters for better accuracy
 boost_tree_xgboost_spec <- boost_tree(
-  trees = 1000,  # Increased from 500 for better learning
-  tree_depth = 5,  # Increased from 3 for more complex patterns
-  learn_rate = 0.01,  # Reduced for better convergence
-  min_n = 5  # Added regularization
+  trees = 1000, # Increased from 500 for better learning
+  tree_depth = 5, # Increased from 3 for more complex patterns
+  learn_rate = 0.01, # Reduced for better convergence
+  min_n = 5 # Added regularization
 ) %>%
-  set_engine("xgboost", 
-             early_stopping_rounds = 50) %>%  # Prevent overfitting
+  set_engine("xgboost",
+    early_stopping_rounds = 50
+  ) %>% # Prevent overfitting
   set_mode("regression")
 
 xgboost_wflow <- workflow() %>%
@@ -775,10 +776,10 @@ splits <- time_series_split(df, assess = 180, cumulative = TRUE)
 # %%
 # Enhanced recipe leveraging all technical indicators and features
 rec <- recipe(close ~ ., data = training(splits)) %>%
-  step_rm(open, high, low) %>%  # Remove raw OHLC, keep derived features
-  step_zv(all_predictors()) %>%  # Remove zero-variance predictors
+  step_rm(open, high, low) %>% # Remove raw OHLC, keep derived features
+  step_zv(all_predictors()) %>% # Remove zero-variance predictors
   step_normalize(all_numeric_predictors()) %>%
-  step_interact(terms = ~ SMA_10:EMA_10 + RSI_14:MACD)  # Add interaction terms
+  step_interact(terms = ~ SMA_10:EMA_10 + RSI_14:MACD) # Add interaction terms
 
 # %%
 wflows <- workflow_set(
@@ -802,15 +803,15 @@ ctrl_race <- control_race(
   save_pred = TRUE,
   save_workflow = TRUE,
   parallel_over = "everything",
-  verbose_elim = TRUE  # More informative output
+  verbose_elim = TRUE # More informative output
 )
 
 # Improved cross-validation strategy for better model evaluation
 resamples_tscv <- time_series_cv(
   training(splits),
-  initial = 730,  # 2 years initial training
-  assess = 60,    # 2 months assessment (reduced from 90 for more folds)
-  skip = 20,      # 20 days skip (reduced from 30 for more folds)
+  initial = 730, # 2 years initial training
+  assess = 60, # 2 months assessment (reduced from 90 for more folds)
+  skip = 20, # 20 days skip (reduced from 30 for more folds)
   cumulative = TRUE
 )
 
@@ -822,7 +823,7 @@ results <- wflows %>%
     seed = 42,
     resamples = resamples_tscv,
     fn = "tune_race_anova",
-    grid = 20,  # Increased from 10 to 20 for more thorough search
+    grid = 20, # Increased from 10 to 20 for more thorough search
     control = ctrl_race,
     verbose = TRUE,
     # param_info = model_params
@@ -842,7 +843,7 @@ print(results)
 cat("\n=== Final Model Rankings (Best Configuration per Model) ===\n")
 wflow_set_final <- rank_results(results, select_best = TRUE, rank_metric = "rmse")
 
-wflow_set_final %>% 
+wflow_set_final %>%
   select(wflow_id, .metric, mean, std_err, rank) %>%
   kable()
 
