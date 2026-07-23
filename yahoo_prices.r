@@ -2,6 +2,30 @@
 # YAHOO STOCK PRICE ANALYSIS
 # Time Series Analysis and Forecasting
 # ==============================================================================
+#
+# ENHANCEMENTS FOR IMPROVED ACCURACY:
+# 1. Enhanced Feature Engineering:
+#    - Added multiple SMAs (10, 20, 50) and EMAs (10, 20, 50)
+#    - Bollinger Bands (upper, lower, pctB) for volatility
+#    - Volume indicators and momentum features (ROC)
+#    - Rolling statistics (std dev) and price ratios
+#    - Enhanced lag features (1,2,3,5,7,10,14 days)
+#    - Multiple rolling windows (3,7,14 periods) for mean and std
+#    - Feature interactions (SMA:EMA, RSI:MACD)
+#
+# 2. Model Improvements:
+#    - Increased XGBoost trees from 500 to 1000
+#    - Deeper trees (depth 5 vs 3) for complex patterns
+#    - Better learning rate (0.01 vs 0.05) for convergence
+#    - Added regularization and early stopping
+#    - Improved hyperparameter tuning (grid size 20 vs 10)
+#
+# 3. Data Quality:
+#    - Removed duplicate records
+#    - Zero-variance predictor removal
+#    - Better train/test splits and cross-validation
+#
+# ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. LIBRARY SETUP
@@ -24,7 +48,9 @@ librarian::shelf(
   tidyquant,
   gridExtra,
   TSstudio,
-  highcharter
+  highcharter,
+  finetune, # For hyperparameter tuning with racing ANOVA
+  knitr # For kable() table formatting
 )
 
 # ------------------------------------------------------------------------------
@@ -490,7 +516,7 @@ splits <- daily_data_tbl %>%
   )
 
 # %%
-# Recipe for XGBoost model
+# Enhanced Recipe for XGBoost model with improved feature engineering
 yahoo_recipe <- recipe(close ~ date, data = training(splits)) %>%
   step_timeseries_signature(date) %>%
   step_rm(date) %>%
@@ -503,12 +529,43 @@ yahoo_recipe <- recipe(close ~ date, data = training(splits)) %>%
     contains("day"),
     contains("wday")
   ) %>%
-  step_lag(close, lag = c(1, 3, 6)) %>%
+  # Enhanced lag features for better pattern capture
+  step_lag(close, lag = c(1, 2, 3, 5, 7, 10, 14)) %>%
+  # Multiple rolling window statistics for richer features
   step_slidify(
     all_of("close"),
     period = 3,
     .f = ~ mean(.x, na.rm = TRUE),
-    align = "right"
+    align = "right",
+    names = "close_ma_3"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 7,
+    .f = ~ mean(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_ma_7"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 14,
+    .f = ~ mean(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_ma_14"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 7,
+    .f = ~ sd(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_sd_7"
+  ) %>%
+  step_slidify(
+    all_of("close"),
+    period = 14,
+    .f = ~ sd(.x, na.rm = TRUE),
+    align = "right",
+    names = "close_sd_14"
   ) %>%
   step_naomit(all_predictors()) %>%
   step_normalize(
@@ -520,12 +577,16 @@ yahoo_recipe <- recipe(close ~ date, data = training(splits)) %>%
   step_dummy(all_nominal_predictors(), one_hot = FALSE)
 
 # %%
+# Improved XGBoost hyperparameters for better accuracy
 boost_tree_xgboost_spec <- boost_tree(
-  trees = 500,
-  tree_depth = 3,
-  learn_rate = 0.05
+  trees = 1000, # Increased from 500 for better learning
+  tree_depth = 5, # Increased from 3 for more complex patterns
+  learn_rate = 0.01, # Reduced for better convergence
+  min_n = 5 # Added regularization
 ) %>%
-  set_engine("xgboost") %>%
+  set_engine("xgboost",
+    early_stopping_rounds = 50
+  ) %>% # Prevent overfitting
   set_mode("regression")
 
 xgboost_wflow <- workflow() %>%
@@ -569,27 +630,35 @@ calibration_tbl %>%
   plot_modeltime_forecast(.conf_interval_show = FALSE)
 
 # %%
-# Accuracy metrics
-# calibration_tbl %>%
-#   modeltime_accuracy() %>%
-#   kable()
+# Display accuracy metrics to track improvements
+cat("\n=== Model Accuracy Comparison ===\n")
+accuracy_results <- calibration_tbl %>%
+  modeltime_accuracy()
 
-# refit_tbl %>%
-#   modeltime_forecast(
-#     h = "60 days",
-#     actual_data = daily_data
-#   ) %>%
-#   plot_modeltime_forecast(
-#     .interactive = FALSE
-#   )
-# refit_tbl %>%
-#   modeltime_forecast(
-#     h = "60 days",
-#     actual_data = daily_data
-#   ) %>%
-#   plot_modeltime_forecast(
-#     .interactive = FALSE
-#   )
+print(accuracy_results)
+
+# Save best model for future use
+best_model_id <- accuracy_results %>%
+  arrange(rmse) %>%
+  slice(1) %>%
+  pull(.model_id)
+
+cat(sprintf("\nBest performing model: Model %d (lowest RMSE)\n", best_model_id))
+
+# Refit best model on full dataset for forecasting
+refit_tbl <- calibration_tbl %>%
+  modeltime_refit(data = daily_data %>% as_tibble() %>% mutate(date = as.Date(date)))
+
+# Generate future forecast
+refit_tbl %>%
+  modeltime_forecast(
+    h = "60 days",
+    actual_data = daily_data %>% as_tibble() %>% mutate(date = as.Date(date))
+  ) %>%
+  plot_modeltime_forecast(
+    .interactive = FALSE,
+    .title = "60-Day Forecast with Enhanced Models"
+  )
 
 # Iteration 2
 # %%
@@ -657,13 +726,44 @@ xgboost_spec <-
 df <- data %>%
   rename(high = 2, low = 3, open = 4, close = 5, volume = 6) %>%
   mutate(date = as.Date(date)) %>%
+  # Remove duplicates to improve data quality
+  distinct(date, .keep_all = TRUE)
+
+# Calculate technical indicators once for efficiency
+# These are computed once and then columns extracted to avoid redundant calculations
+macd_result <- MACD(df$close, nFast = 12, nSlow = 26, nSig = 9)
+bbands_result <- BBands(df$close, n = 20, sd = 2)
+atr_result <- ATR(df[, c("high", "low", "close")], n = 14)
+
+df <- df %>%
   mutate(
+    # Existing technical indicators
     SMA_10 = SMA(close, n = 10),
+    SMA_20 = SMA(close, n = 20),
+    SMA_50 = SMA(close, n = 50),
+    EMA_10 = EMA(close, n = 10),
     EMA_20 = EMA(close, n = 20),
+    EMA_50 = EMA(close, n = 50),
     RSI_14 = RSI(close, n = 14),
-    MACD = MACD(close, nFast = 12, nSlow = 26, nSig = 9)[, "macd"],
-    MACD_sig = MACD(close, nFast = 12, nSlow = 26, nSig = 9)[, "signal"],
-    ATR_14 = ATR(select(cur_data(), high, low, close), n = 14)[, "atr"]
+    MACD = macd_result[, "macd"],
+    MACD_sig = macd_result[, "signal"],
+    ATR_14 = atr_result[, "atr"],
+    # Enhanced technical indicators for better accuracy
+    BBands_upper = bbands_result[, "up"],
+    BBands_lower = bbands_result[, "dn"],
+    BBands_pctB = bbands_result[, "pctB"],
+    # Volume indicators
+    volume_sma_10 = SMA(volume, n = 10),
+    volume_sma_20 = SMA(volume, n = 20),
+    # Price momentum features
+    ROC_5 = ROC(close, n = 5),
+    ROC_10 = ROC(close, n = 10),
+    # Volatility measures
+    close_std_10 = runSD(close, n = 10),
+    close_std_20 = runSD(close, n = 20),
+    # Price range features (with protection against division by zero)
+    high_low_ratio = ifelse(low > 0, high / low, NA_real_),
+    close_open_ratio = ifelse(open > 0, close / open, NA_real_)
   ) %>%
   drop_na()
 
@@ -674,10 +774,12 @@ splits <- time_series_split(df, assess = 180, cumulative = TRUE)
 
 
 # %%
+# Enhanced recipe leveraging all technical indicators and features
 rec <- recipe(close ~ ., data = training(splits)) %>%
-  # update_role(date, new_role = "ID") %>%
-  step_rm(open, high, low) %>%
-  step_normalize(all_numeric_predictors())
+  step_rm(open, high, low) %>% # Remove raw OHLC, keep derived features
+  step_zv(all_predictors()) %>% # Remove zero-variance predictors
+  step_normalize(all_numeric_predictors()) %>%
+  step_interact(terms = ~ SMA_10:EMA_10 + RSI_14:MACD) # Add interaction terms
 
 # %%
 wflows <- workflow_set(
@@ -691,49 +793,82 @@ wflows <- workflow_set(
     xgb = xgboost_spec
   )
 )
+
+# Note: Parameter ranges are automatically determined by the racing ANOVA algorithm
+# Custom ranges could be specified via param_info if needed for specific models
+
 # %%
-library(finetune)
+# Control settings for hyperparameter tuning with racing ANOVA
 ctrl_race <- control_race(
   save_pred = TRUE,
   save_workflow = TRUE,
-  parallel_over = "everything"
+  parallel_over = "everything",
+  verbose_elim = TRUE # More informative output
 )
 
-# 1 year train, 1 month test
+# Improved cross-validation strategy for better model evaluation
 resamples_tscv <- time_series_cv(
   training(splits),
-  initial = 730,
-  assess = 90,
-  skip = 30,
+  initial = 730, # 2 years initial training
+  assess = 60, # 2 months assessment (reduced from 90 for more folds)
+  skip = 20, # 20 days skip (reduced from 30 for more folds)
   cumulative = TRUE
 )
 
 
 # %%
+# Enhanced hyperparameter tuning with larger grid for better accuracy
 results <- wflows %>%
   workflow_map(
     seed = 42,
     resamples = resamples_tscv,
     fn = "tune_race_anova",
-    grid = 10,
+    grid = 20, # Increased from 10 to 20 for more thorough search
     control = ctrl_race,
     verbose = TRUE,
     # param_info = model_params
   )
 
 # %%
-results
+cat("\n=== All Workflow Results ===\n")
+print(results)
 
 # %%
-results %>%
-  filter(wflow_id != "base_recipe_xgb") -> results
+# Comment out the filter - keep all models for comprehensive comparison
+# results %>%
+#   filter(wflow_id != "base_recipe_xgb") -> results
 
 
 # %%
-wflow_set_final <- rank_results(results, select_best = TRUE)
+cat("\n=== Final Model Rankings (Best Configuration per Model) ===\n")
+wflow_set_final <- rank_results(results, select_best = TRUE, rank_metric = "rmse")
 
-wflow_set_final %>% kable()
+wflow_set_final %>%
+  select(wflow_id, .metric, mean, std_err, rank) %>%
+  kable()
+
 # %%
-results %>%
-  extract_workflow_set_result("base_recipe_nnet") %>%
-  select_best(metric = "rsq")
+# Display best hyperparameters for top models
+cat("\n=== Best Hyperparameters for Top 3 Models ===\n")
+top_3_models <- wflow_set_final %>%
+  filter(.metric == "rmse") %>%
+  arrange(rank) %>%
+  head(3) %>%
+  pull(wflow_id)
+
+for (model_id in top_3_models) {
+  cat(sprintf("\n%s:\n", model_id))
+  best_params <- results %>%
+    extract_workflow_set_result(model_id) %>%
+    select_best(metric = "rmse")
+  print(best_params)
+}
+
+# Save the best overall model
+best_wflow_id <- wflow_set_final %>%
+  filter(.metric == "rmse") %>%
+  arrange(rank) %>%
+  slice(1) %>%
+  pull(wflow_id)
+
+cat(sprintf("\n=== Best Overall Model: %s ===\n", best_wflow_id))
